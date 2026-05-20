@@ -124,9 +124,17 @@ Tests use [vitest](https://vitest.dev/) and live in `tests/`:
 ```
 tests/
 ├── extension/
-│   └── plan-tracker.test.ts   # Unit tests for plan-tracker core logic
+│   ├── plan-tracker.test.ts          # Unit tests for plan-tracker core logic
+│   └── superpowers-bootstrap.test.ts # Bootstrap helper coverage
+├── integration/
+│   ├── pi-superpowers-workflow.sh    # Deterministic install/discovery smoke test
+│   └── README.md
+├── package/
+│   ├── package-metadata.test.ts      # Package metadata and install references
+│   └── readme-parity.test.ts         # README / docs consistency checks
 └── skills/
-    └── skill-validation.test.ts  # Validates all skills: frontmatter, cross-refs, file refs
+    ├── skill-validation.test.ts      # Frontmatter, cross-refs, file refs
+    └── upstream-parity.test.ts       # Upstream sync regression coverage
 ```
 
 Run the full suite:
@@ -148,7 +156,7 @@ npm run test:watch
 - All referenced `.md`, `.sh`, `.ts` files existing on disk
 - Correct wiring in `package.json` (`pi.skills`, `pi.extensions`)
 
-**Extension tests** cover the plan-tracker core and bootstrap helper: init, update, status, clear, formatting, widget data, state reconstruction from conversation branches, and bootstrap prompt generation.
+**Extension tests** cover the plan-tracker core and bootstrap helper: init, update, status, clear, formatting, widget data, state reconstruction from conversation branches, bootstrap prompt generation, and deterministic install/discovery smoke coverage.
 
 ## Attribution
 

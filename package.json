@@ -21,6 +21,7 @@
   "files": [
     "extensions/",
     "skills/",
+    "docs/upstream-superpowers-source-map.md",
     "banner.jpg",
     "CHANGELOG.md",
     "LICENSE",
