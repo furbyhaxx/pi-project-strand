@@ -32,7 +32,8 @@
   },
   "pi": {
     "extensions": [
-      "extensions/plan-tracker.ts"
+      "extensions/plan-tracker.ts",
+      "extensions/superpowers-bootstrap.ts"
     ],
     "skills": [
       "skills"
