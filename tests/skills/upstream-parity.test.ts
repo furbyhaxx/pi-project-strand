@@ -42,15 +42,38 @@ describe("upstream parity regressions", () => {
     expect(text).toContain("User reviews written spec");
   });
 
+  test("brainstorming uses a hard gate and checklist", async () => {
+    const text = await file("skills/brainstorming/SKILL.md");
+    expect(text).toContain("<HARD-GATE>");
+    expect(text).toContain("## Checklist");
+    expect(text).toContain("scope decomposition");
+    expect(text).toContain("User reviews written spec");
+  });
+
   test("writing-plans includes no-placeholders rules", async () => {
     const text = await file("skills/writing-plans/SKILL.md");
     expect(text).toContain("## No Placeholders");
     expect(text).toContain("docs/superpowers/plans/");
   });
 
+  test("writing-plans uses superpowers paths and placeholder rules", async () => {
+    const text = await file("skills/writing-plans/SKILL.md");
+    expect(text).toContain("docs/superpowers/specs/");
+    expect(text).toContain("docs/superpowers/plans/");
+    expect(text).toContain("## No Placeholders");
+    expect(text).toContain("## Self-Review");
+  });
+
   test("visual companion guidance exists", async () => {
     const text = await file("skills/brainstorming/visual-companion.md");
     expect(text).toContain("AskUserQuestion");
+  });
+
+  test("visual companion is pi-native, not browser-server specific", async () => {
+    const text = await file("skills/brainstorming/visual-companion.md");
+    expect(text).toContain("AskUserQuestion");
+    expect(text).toContain("preview");
+    expect(text).not.toContain("start-server.sh");
   });
 
   test("bootstrap extension exists", async () => {
