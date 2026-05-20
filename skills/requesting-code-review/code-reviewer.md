@@ -30,6 +30,22 @@ Dispatch a general-purpose reviewer with this prompt:
     git diff {BASE_SHA}..{HEAD_SHA}
     ```
 
+    ## Files to Review
+
+    BEFORE analyzing, read these files:
+
+    1. [List specific files that changed in the diff]
+    2. [Files referenced by changes but not modified]
+
+    Use Read tool to load each file.
+
+    If you cannot find a file:
+    - Check exact path from diff
+    - Try alternate locations
+    - Report: "Cannot locate [path] - please verify file exists"
+
+    DO NOT proceed with review until you've read the actual code.
+
     ## What to Check
 
     **Plan alignment:**

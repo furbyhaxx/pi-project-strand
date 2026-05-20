@@ -94,6 +94,23 @@ describe("upstream parity regressions", () => {
     expect(text).toContain("Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT");
   });
 
+  test("verification-before-completion includes config-change verification", async () => {
+    const text = await file("skills/verification-before-completion/SKILL.md");
+    expect(text).toContain("Verifying Configuration Changes");
+    expect(text).toContain("What should be DIFFERENT after this change?");
+  });
+
+  test("testing anti-patterns covers mock-interface drift", async () => {
+    const text = await file("skills/test-driven-development/testing-anti-patterns.md");
+    expect(text).toContain("Mocks Derived from Implementation");
+    expect(text).toContain("derive mock from interface");
+  });
+
+  test("code reviewer prompt explicitly reads files before analysis", async () => {
+    const text = await file("skills/requesting-code-review/code-reviewer.md");
+    expect(text).toContain("BEFORE analyzing, read these files");
+  });
+
   test("bootstrap extension exists", async () => {
     const text = await file("extensions/superpowers-bootstrap.ts");
     expect(text).toContain("before_agent_start");

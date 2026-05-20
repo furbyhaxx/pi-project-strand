@@ -248,6 +248,73 @@ TDD cycle:
 4. THEN claim complete
 ```
 
+## Anti-Pattern 6: Mocks Derived from Implementation
+
+**The violation:**
+```typescript
+// Code (BUGGY) calls cleanup()
+await adapter.cleanup();
+
+// Mock (MATCHES BUG) has cleanup()
+const mock = {
+  cleanup: vi.fn().mockResolvedValue(undefined)
+};
+
+// Interface (CORRECT) defines close()
+interface PlatformAdapter {
+  close(): Promise<void>;
+}
+```
+
+**Why this is wrong:**
+- Mock encodes the bug into the test
+- TypeScript can't catch inline mocks with wrong method names
+- Test passes because both code and mock are wrong
+- Runtime crashes when real object is used
+
+**The fix:**
+derive mock from interface definitions, not from whatever the buggy implementation happens to call.
+
+```typescript
+// ✅ GOOD: Derive mock from interface
+
+// Step 1: Open interface definition (PlatformAdapter)
+// Step 2: List methods defined there (close, initialize, etc.)
+// Step 3: Mock EXACTLY those methods
+
+const mock = {
+  initialize: vi.fn().mockResolvedValue(undefined),
+  close: vi.fn().mockResolvedValue(undefined),  // From interface!
+};
+
+// Now test FAILS because code calls cleanup() which doesn't exist
+// That failure reveals the bug BEFORE runtime
+```
+
+### Gate Function
+
+```
+BEFORE writing any mock:
+
+  1. STOP - Do NOT look at the code under test yet
+  2. FIND: The interface/type definition for the dependency
+  3. READ: The interface file
+  4. LIST: Methods defined in the interface
+  5. MOCK: ONLY those methods with EXACTLY those names
+  6. DO NOT: Look at what your code calls
+
+  IF your test fails because code calls something not in mock:
+    ✅ GOOD - The test found a bug in your code
+    Fix the code to call the correct interface method
+    NOT the mock
+
+  Red flags:
+    - "I'll mock what the code calls"
+    - Copying method names from implementation
+    - Mock written without reading interface
+    - "The test is failing so I'll add this method to the mock"
+```
+
 ## When Mocks Become Too Complex
 
 **Warning signs:**
