@@ -76,6 +76,24 @@ describe("upstream parity regressions", () => {
     expect(text).not.toContain("start-server.sh");
   });
 
+  test("executing-plans recommends subagent-driven-development first", async () => {
+    const text = await file("skills/executing-plans/SKILL.md");
+    expect(text).toContain("works much better with access to subagents");
+    expect(text).toContain("use /skill:subagent-driven-development instead");
+  });
+
+  test("subagent-driven-development includes model selection and status handling", async () => {
+    const text = await file("skills/subagent-driven-development/SKILL.md");
+    expect(text).toContain("## Model Selection");
+    expect(text).toContain("DONE_WITH_CONCERNS");
+    expect(text).toContain("NEEDS_CONTEXT");
+  });
+
+  test("implementer prompt requires explicit status reporting", async () => {
+    const text = await file("skills/subagent-driven-development/implementer-prompt.md");
+    expect(text).toContain("Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT");
+  });
+
   test("bootstrap extension exists", async () => {
     const text = await file("extensions/superpowers-bootstrap.ts");
     expect(text).toContain("before_agent_start");
