@@ -6,6 +6,8 @@ Structured workflow skills for [pi](https://github.com/earendil-works/pi), adapt
 
 Brainstorming → Planning → TDD → Debugging → Code Review → Finishing — as composable skills your coding agent loads on demand.
 
+This fork is intentionally **pi-native**. It ports the useful workflow content from upstream Superpowers, but does not carry over harness-specific plugin manifests, session-start hooks, or browser-server glue where pi has better native options.
+
 ## Install
 
 ```bash
@@ -66,17 +68,52 @@ plan_tracker({ action: "status" })
 plan_tracker({ action: "clear" })
 ```
 
+### Bootstrap Extension
+
+The `superpowers-bootstrap` extension injects a lightweight pi-native reminder before agent turns:
+- skill-first behavior before action
+- user instructions override superpowers guidance
+- prefer `/skill:`, `AskUserQuestion`, and `plan_tracker`
+
+If you inspect package resources you will see:
+- `extensions/superpowers-bootstrap.ts`
+
+### Visual Brainstorming
+
+Visual brainstorming is pi-native too. Instead of upstream browser-server flows, this package uses **AskUserQuestion preview** patterns for side-by-side comparisons and lightweight mockups:
+- single-select visual comparisons
+- inline preview-driven layout choices
+- easy fallback back to plain chat when visuals are unnecessary
+
+See:
+- `skills/brainstorming/visual-companion.md`
+
 ## The Workflow
 
-1. **Brainstorm** — `/skill:brainstorming` refines your idea into a design document
-2. **Isolate** — `/skill:using-git-worktrees` creates a clean workspace
-3. **Plan** — `/skill:writing-plans` breaks work into bite-sized TDD tasks
+1. **Brainstorm** — `/skill:brainstorming` refines your idea into a design document under `docs/superpowers/specs/`
+2. **Isolate** — `/skill:using-git-worktrees` creates or verifies a safe workspace
+3. **Plan** — `/skill:writing-plans` breaks work into bite-sized TDD tasks under `docs/superpowers/plans/`
 4. **Execute** — `/skill:executing-plans` or `/skill:subagent-driven-development` works through the plan
 5. **Verify** — `/skill:verification-before-completion` proves it works
 6. **Review** — `/skill:requesting-code-review` catches issues
 7. **Finish** — `/skill:finishing-a-development-branch` merges or creates a PR
 
 Each skill cross-references related skills so the agent knows what to use next.
+
+## Upstream Provenance
+
+This package is derived from `obra/superpowers`, but ports only the behavior that makes sense for pi.
+
+Intentionally **not** ported directly:
+- `.claude-plugin/`
+- `.codex-plugin/`
+- `.cursor-plugin/`
+- `.opencode/`
+- `hooks/`
+- upstream browser-server brainstorm launcher scripts
+
+For the exact upstream-to-local mapping, see:
+- `docs/upstream-superpowers-source-map.md`
 
 ## Development
 
@@ -111,7 +148,7 @@ npm run test:watch
 - All referenced `.md`, `.sh`, `.ts` files existing on disk
 - Correct wiring in `package.json` (`pi.skills`, `pi.extensions`)
 
-**Extension tests** cover the plan-tracker core: init, update, status, clear, formatting, widget data, and state reconstruction from conversation branches.
+**Extension tests** cover the plan-tracker core and bootstrap helper: init, update, status, clear, formatting, widget data, state reconstruction from conversation branches, and bootstrap prompt generation.
 
 ## Attribution
 

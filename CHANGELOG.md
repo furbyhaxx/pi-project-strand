@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- synced core workflow skills with newer upstream superpowers behavior for worktree handling, brainstorming, planning, execution, and review
+- added a pi-native `superpowers-bootstrap` extension for skill-first guidance before agent turns
+- replaced upstream browser-server visual brainstorming assumptions with pi-native `AskUserQuestion` preview guidance
+- added upstream parity regression tests and bootstrap unit tests
+- hardened verification, testing anti-pattern, and code review guidance with feedback-derived improvements
+- documented pi-native provenance and non-ported upstream harness glue
+
 ## [0.2.1] - 2026-05-20
 
 ### Changed
