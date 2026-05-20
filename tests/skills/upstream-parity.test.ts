@@ -15,11 +15,25 @@ describe("upstream parity regressions", () => {
     expect(text).toContain("Would you like me to set up an isolated worktree?");
   });
 
+  test("using-git-worktrees prefers native tools before git fallback", async () => {
+    const text = await file("skills/using-git-worktrees/SKILL.md");
+    expect(text).toContain("### 1a. Native Worktree Tools (preferred)");
+    expect(text).toContain("### 1b. Git Worktree Fallback");
+    expect(text).toContain("Submodule guard");
+  });
+
   test("finishing-a-development-branch includes provenance cleanup", async () => {
     const text = await file("skills/finishing-a-development-branch/SKILL.md");
     expect(text).toContain("Detached HEAD");
     expect(text).toContain("Only runs for Options 1 and 4");
     expect(text).toContain("Only clean up worktrees under");
+  });
+
+  test("finishing skill never cleans PR worktrees", async () => {
+    const text = await file("skills/finishing-a-development-branch/SKILL.md");
+    expect(text).toContain("Options 2 and 3 always preserve the worktree");
+    expect(text).toContain("Detached HEAD");
+    expect(text).toContain("provenance");
   });
 
   test("brainstorming includes hard gate and user review gate", async () => {
