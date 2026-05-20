@@ -1,22 +1,22 @@
-# pi-superpowers
+# @furbyhaxx/pi-superpowers
 
 ![pi-superpowers banner](banner.jpg)
 
-Structured workflow skills for [pi](https://github.com/badlogic/pi-mono), adapted from [Superpowers](https://github.com/obra/superpowers) by Jesse Vincent.
+Structured workflow skills for [pi](https://github.com/earendil-works/pi), adapted from [Superpowers](https://github.com/obra/superpowers) by Jesse Vincent.
 
 Brainstorming → Planning → TDD → Debugging → Code Review → Finishing — as composable skills your coding agent loads on demand.
 
 ## Install
 
 ```bash
-pi install git:github.com/coctostan/pi-superpowers
+pi install git:github.com/furbyhaxx/pi-superpowers
 ```
 
 Or add to `.pi/settings.json` (project-level) or `~/.pi/agent/settings.json` (global):
 
 ```json
 {
-  "packages": ["git:github.com/coctostan/pi-superpowers"]
+  "packages": ["git:github.com/furbyhaxx/pi-superpowers"]
 }
 ```
 
@@ -26,7 +26,7 @@ Several skills can dispatch work to subagents (marked with 🤖 below). **pi-sup
 
 To enable automated dispatch, install a subagent extension:
 
-- **pi's example subagent extension** — Ships with pi at `examples/extensions/subagent/`. See [its README](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent/examples/extensions/subagent) for installation via symlinks into `~/.pi/agent/extensions/subagent/`.
+- **pi's example subagent extension** — Ships with pi at `examples/extensions/subagent/`. See [its README](https://github.com/earendil-works/pi/tree/main/packages/coding-agent/examples/extensions/subagent) for installation via symlinks into `~/.pi/agent/extensions/subagent/`.
 - **Any compatible subagent extension** — Any extension that provides a `subagent` tool works.
 - **Manual alternative** — Run `pi -p "prompt"` in another terminal, or use tmux panes for parallel tasks.
 
