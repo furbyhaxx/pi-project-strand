@@ -28,7 +28,8 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "bash tests/integration/pi-superpowers-workflow.sh"
   },
   "pi": {
     "extensions": [
