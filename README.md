@@ -40,7 +40,7 @@ To enable automated dispatch, install a subagent extension:
 |-------|-------------|--------|
 | **brainstorming** | Socratic design refinement — questions, alternatives, incremental validation | `/skill:brainstorming` |
 | **writing-plans** | Detailed implementation plans with bite-sized TDD tasks | `/skill:writing-plans` |
-| **executing-plans** | Batch execution with checkpoints for architect review | `/skill:executing-plans` |
+| **executing-plans** | Execute a written implementation plan directly when subagents are unavailable | `/skill:executing-plans` |
 | 🤖 **subagent-driven-development** | Fresh subagent per task with two-stage review | `/skill:subagent-driven-development` |
 | **test-driven-development** | RED-GREEN-REFACTOR cycle (includes anti-patterns reference) | `/skill:test-driven-development` |
 | **systematic-debugging** | 4-phase root cause investigation | `/skill:systematic-debugging` |

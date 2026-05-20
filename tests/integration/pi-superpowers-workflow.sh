@@ -14,6 +14,7 @@ test -f .pi/settings.json
 
 PACKAGE_ENTRY="$(node -e 'const fs=require("fs"); const settings=JSON.parse(fs.readFileSync(".pi/settings.json","utf8")); if(!Array.isArray(settings.packages)||settings.packages.length!==1){process.exit(2)} process.stdout.write(settings.packages[0])')"
 PACKAGE_PATH="$(node -e 'const fs=require("fs"); const path=require("path"); const settings=JSON.parse(fs.readFileSync(".pi/settings.json","utf8")); process.stdout.write(path.resolve(process.cwd(), settings.packages[0]))')"
+PACKAGE_VERSION="$(node -e 'const fs=require("fs"); const path=require("path"); const pkg=JSON.parse(fs.readFileSync(path.join(process.argv[1], "package.json"), "utf8")); process.stdout.write(pkg.version)' "$ROOT")"
 
 echo "package entry: $PACKAGE_ENTRY"
 echo "resolved package path: $PACKAGE_PATH"
@@ -36,6 +37,6 @@ test -f "$PACKAGE_PATH/extensions/superpowers-bootstrap.ts"
   cd "$PACKAGE_PATH"
   npm pack --dry-run > "$TMP_PACK_OUT" 2>&1
 )
-rg -n "@furbyhaxx/pi-superpowers@0.2.1|extensions/superpowers-bootstrap.ts|skills/brainstorming/visual-companion.md" "$TMP_PACK_OUT"
+rg -n "@furbyhaxx/pi-superpowers@${PACKAGE_VERSION}|extensions/superpowers-bootstrap.ts|skills/brainstorming/visual-companion.md" "$TMP_PACK_OUT"
 
 echo "integration smoke passed"

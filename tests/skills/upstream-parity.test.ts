@@ -80,6 +80,7 @@ describe("upstream parity regressions", () => {
     const text = await file("skills/executing-plans/SKILL.md");
     expect(text).toContain("works much better with access to subagents");
     expect(text).toContain("use /skill:subagent-driven-development instead");
+    expect(text).not.toContain("review checkpoints");
   });
 
   test("subagent-driven-development includes model selection and status handling", async () => {
