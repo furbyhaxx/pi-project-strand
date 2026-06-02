@@ -33,6 +33,10 @@ describe("package metadata", () => {
     expect(packageJson.pi?.extensions).toContain("extensions/project-tracker.ts");
   });
 
+  test("registers the project commands extension", () => {
+    expect(packageJson.pi?.extensions).toContain("extensions/project-commands.ts");
+  });
+
   test("uses current pi peer dependency scopes", () => {
     expect(packageJson.peerDependencies).toMatchObject({
       "@earendil-works/pi-ai": "*",

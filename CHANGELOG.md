@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- added persistent `project_knowledge` and `project_tracker` extensions for project-scoped memory, slice/knot state, and FRS criteria tracking
+- added `project-commands` extension with `/project:onboard`, `/project:brainstorm`, `/project:build`, `/project:implement`, and `/project:change` slash commands backed by `pi.sendUserMessage(...)`
+- added required project file templates and self-documentation files (`PROJECT.md`, `VISION.md`, `ARCHITECTURE.md`, `AGENTS.md`)
+
+### Changed
+- expanded bootstrap context with FRS/MVFoS foundations, collaboration roles, Key Account Manager behavior, project memory usage, and skill routing
+- replaced fragile active-slice regex parsing with direct active slice lookup from project tracker state
+
 ## [0.3.0] - 2026-05-20
 
 ### Changed

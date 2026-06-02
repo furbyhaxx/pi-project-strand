@@ -7,7 +7,7 @@ TypeScript pi package providing FRS/MVFoS project tracking, persistent knowledge
 **Layout:**
 - `extensions/` — Pi extension modules (auto-discovered, no build)
 - `skills/` — Pi skill directories (`<name>/SKILL.md`)
-- `prompts/` — Pi prompt templates (command: `/<stem>`)
+- `extensions/project-commands.ts` — registered `/project:*` commands that call `pi.sendUserMessage(...)`
 - `references/` — Reference docs for skills to load on demand
 - `tests/` — Vitest unit + integration tests
 
@@ -41,10 +41,11 @@ No build step. No compilation. `npm test` is the only verification gate.
 3. Keep `description` to triggering conditions only — no workflow summary in description
 4. Add to `pi.skills` in `package.json` (or leave as `"skills"` to auto-discover the directory)
 
-### Adding a new prompt template
-1. Create `prompts/<name>.md` — command becomes `/<name>`
-2. Include frontmatter with at least `description`
-3. Include `argument-hint` if the command takes arguments
+### Adding a new slash command
+1. Register it in `extensions/project-commands.ts` with `pi.registerCommand("namespace:name", ...)`
+2. Keep deterministic audit/build-message helpers exported and unit-tested
+3. Use `pi.sendUserMessage(...)` to trigger LLM-driven workflows; use `deliverAs: "followUp"` if the agent is busy
+4. Add the extension file to `package.json` `pi.extensions` only if creating a new extension module
 
 ## DO NOT
 

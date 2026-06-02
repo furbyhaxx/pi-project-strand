@@ -21,7 +21,6 @@
   "files": [
     "extensions/",
     "skills/",
-    "prompts/",
     "references/",
     "docs/upstream-superpowers-source-map.md",
     "PROJECT.md",
@@ -43,13 +42,11 @@
       "extensions/plan-tracker.ts",
       "extensions/project-tracker.ts",
       "extensions/project-knowledge.ts",
+      "extensions/project-commands.ts",
       "extensions/superpowers-bootstrap.ts"
     ],
     "skills": [
       "skills"
-    ],
-    "prompts": [
-      "prompts"
     ]
   },
   "peerDependencies": {

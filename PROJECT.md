@@ -46,14 +46,17 @@ It is the difference between a stateless session that forgets everything when cl
 | `finishing-a-development-branch` | Branch completion |
 | `writing-skills` | Creating and testing new skills |
 
-### Prompt Templates (User Commands)
+### Slash Commands
+
+Registered by `extensions/project-commands.ts`. Commands compute deterministic project context, then call `pi.sendUserMessage(...)` to trigger the LLM-driven workflow.
 
 | Command | Purpose |
 |---------|---------|
-| `/project-onboard` | Interactive wizard to create required project files and initialize tracking |
-| `/project-brainstorm` | Start a guided brainstorming session |
-| `/project-build` | Resume or start implementing the current active slice |
-| `/project-change` | Interactively change project docs, architecture, plans, or tracking structure |
+| `/project:onboard` | Interactive wizard to create required project files and initialize tracking |
+| `/project:brainstorm` | Start a guided brainstorming session |
+| `/project:build` | Resume or start implementing the current active slice |
+| `/project:implement` | Alias for `/project:build` |
+| `/project:change` | Interactively change project docs, architecture, plans, or tracking structure |
 
 ## Required Project Files
 
@@ -75,6 +78,6 @@ See `references/required-project-files.md` for templates.
 
 ## Current State
 
-Core feature set: complete. The package provides project tracking, knowledge graph, bootstrap injection, skills, and prompt templates for a full vibe-coded development workflow.
+Core feature set: complete. The package provides project tracking, knowledge graph, bootstrap injection, skills, and registered `/project:*` slash commands for a full vibe-coded development workflow.
 
 See `CHANGELOG.md` for detailed version history.

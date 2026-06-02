@@ -58,7 +58,9 @@ State is stored persistently in `.pi/project/state.json` by default using **atom
 ### Extensions
 
 - `extensions/plan-tracker.ts` — session-scoped todo/task progress widget
-- `extensions/project-tracker.ts` — persistent project tracker tool + slash commands
+- `extensions/project-tracker.ts` — persistent project tracker tool
+- `extensions/project-knowledge.ts` — persistent project knowledge graph tool
+- `extensions/project-commands.ts` — registered `/project:*` slash commands that trigger LLM workflows via `pi.sendUserMessage(...)`
 - `extensions/superpowers-bootstrap.ts` — injects project-strand reminders and project summary into the system prompt
 
 ### Tools

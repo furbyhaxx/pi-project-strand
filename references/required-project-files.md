@@ -2,7 +2,7 @@
 
 Every project using pi-project-strand needs these four files. They provide the persistent context that survives session clears and lets any AI agent orient quickly without re-interviewing the user.
 
-Use `/project-onboard` to create them interactively when starting a new project.
+Use `/project:onboard` to create them interactively when starting a new project.
 
 ---
 
@@ -189,7 +189,7 @@ All four files live at the repository root (or subproject root for monorepos). F
 
 ## Initialization
 
-The `/project-onboard` prompt template guides interactive creation of all four files when starting a new project. It:
+The `/project:onboard` slash command guides interactive creation of all four files when starting a new project. It:
 1. Scans for missing files
 2. Interviews you about the project (one question at a time)
 3. Creates each file using the templates above

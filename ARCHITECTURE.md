@@ -2,7 +2,7 @@
 
 ## Overview
 
-A pi package structured as TypeScript extension modules (loaded by jiti, no build step) plus skills (Markdown), prompt templates (Markdown), and reference docs. All state is persisted to project-scoped JSON files under `.pi/project/`.
+A pi package structured as TypeScript extension modules (loaded by jiti, no build step) plus skills (Markdown), registered slash commands, and reference docs. All state is persisted to project-scoped JSON files under `.pi/project/`.
 
 ## Structure
 
@@ -15,10 +15,10 @@ pi-project-strand/
 │   ├── project-tracker.ts         # Pi wrapper: registerTool("project_tracker")
 │   ├── project-knowledge-core.ts  # Pure functions: CRUD, graph traversal, glob matching
 │   ├── project-knowledge.ts       # Pi wrapper: registerTool("project_knowledge")
+│   ├── project-commands.ts        # Pi wrapper: registerCommand("project:*") + pi.sendUserMessage
 │   └── superpowers-bootstrap.ts   # before_agent_start hook: injects context per turn
 ├── skills/                        # Pi skills (SKILL.md directories)
-├── prompts/                       # Pi prompt templates (/project-* commands)
-├── references/                    # Reference docs loaded by skills on demand
+├── references/                    # Reference docs loaded by skills/commands on demand
 ├── tests/                         # Vitest tests
 │   ├── extension/                 # Unit tests for core modules
 │   ├── package/                   # Package manifest + README parity tests

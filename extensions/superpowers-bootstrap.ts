@@ -43,7 +43,7 @@ No stubs, no hollow shells, no placeholders. Real implementations only.
 Load \`/skill:frs-strategy\` for full methodology and quality bars per knot.
 
 ### Required Project Files
-Every project should have these files. If any are missing, flag it and offer \`/project-onboard\`.
+Every project should have these files. If any are missing, flag it and offer \`/project:onboard\`.
 - **PROJECT.md** — what it is, components, conventions, current state
 - **VISION.md** — vision, goals, non-goals, design principles  
 - **ARCHITECTURE.md** — decisions, patterns, constraints, tech stack
