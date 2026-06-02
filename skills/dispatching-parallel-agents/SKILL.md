@@ -7,9 +7,9 @@ description: Use when facing 2+ independent tasks that can be worked on without 
 
 ## Overview
 
-When you have multiple unrelated failures (different test files, different subsystems, different bugs), investigating them sequentially wastes time. Each investigation is independent and can happen in parallel.
+When you have multiple unrelated problems (different subsystems, different bugs, independent investigations), working on them sequentially wastes time. Use the `delegate` tool with the `tasks` array to dispatch multiple teammates concurrently.
 
-**Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
+**Core principle:** One teammate per independent problem domain. Let them work concurrently via `delegate` parallel tasks.
 
 ## When to Use
 
@@ -63,17 +63,32 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-**How to dispatch:**
-- If a dispatch tool is available (e.g. pi-superteam's `team` tool), use it
-- Otherwise, run a second pi instance per task: `pi -p "prompt"`
-- For parallel tasks, use multiple terminal panes (one per task)
+Use the `delegate` tool with the `tasks` array. Every task gets `context: "new"` — provide all needed context in the task brief itself.
 
 ```
-Agent 1: "Fix agent-tool-abort.test.ts failures"
-Agent 2: "Fix batch-completion-behavior.test.ts failures"
-Agent 3: "Fix tool-approval-race-conditions.test.ts failures"
-// All three run concurrently
+delegate:
+  tasks:
+    - teammate: "worker"
+      context: "new"
+      cwd: "/path/to/project"
+      task: "Fix the 3 failing tests in src/agents/agent-tool-abort.test.ts..."
+    - teammate: "worker"
+      context: "new"
+      cwd: "/path/to/project"
+      task: "Fix the 2 failing tests in src/batch-completion-behavior.test.ts..."
+    - teammate: "worker"
+      context: "new"
+      cwd: "/path/to/project"
+      task: "Fix the 1 failing test in src/tool-approval-race-conditions.test.ts..."
 ```
+
+**Teammate selection:**
+- `worker` — for implementation, fixing, building
+- `reviewer` — for auditing, reviewing, verifying
+- `scout` — for reconnaissance, mapping, research (read-only exploration)
+- `planner` — for planning and task sequencing
+
+**Do NOT dispatch multiple `worker` tasks that touch the same files** — they will conflict.
 
 ### 4. Review and Integrate
 
@@ -85,10 +100,11 @@ When agents return:
 
 ## Agent Prompt Structure
 
-Good agent prompts are:
-1. **Focused** - One clear problem domain
-2. **Self-contained** - All context needed to understand the problem
-3. **Specific about output** - What should the agent return?
+Good task briefs for parallel workers are:
+1. **Focused** — one clear problem domain
+2. **Self-contained** — all context needed (teammate has no access to your session)
+3. **Specific about output** — what should the teammate return?
+4. **Bounded** — clear constraints on scope (e.g. "do not change production code")
 
 ```markdown
 Fix the 3 failing tests in src/agents/agent-tool-abort.test.ts:
@@ -97,18 +113,14 @@ Fix the 3 failing tests in src/agents/agent-tool-abort.test.ts:
 2. "should handle mixed completed and aborted tools" - fast tool aborted instead of completed
 3. "should properly track pendingToolCount" - expects 3 results but gets 0
 
-These are timing/race condition issues. Your task:
-
+Root cause appears to be timing/race conditions. Your task:
 1. Read the test file and understand what each test verifies
 2. Identify root cause - timing issues or actual bugs?
-3. Fix by:
-   - Replacing arbitrary timeouts with event-based waiting
-   - Fixing bugs in abort implementation if found
-   - Adjusting test expectations if testing changed behavior
+3. Fix (replacing arbitrary timeouts with event-based waiting, or fixing abort logic)
+4. Do NOT just increase timeouts - find the real issue
+5. Do NOT change other test files or production code outside this component
 
-Do NOT just increase timeouts - find the real issue.
-
-Return: Summary of what you found and what you fixed.
+Return: Status (DONE/BLOCKED/NEEDS_CONTEXT), root cause found, what you fixed, test results.
 ```
 
 ## Common Mistakes
@@ -143,11 +155,19 @@ Return: Summary of what you found and what you fixed.
 
 **Decision:** Independent domains - abort logic separate from batch completion separate from race conditions
 
-**Dispatch:** (via dispatch tool, or one `pi -p` per terminal pane)
+**Dispatch:** (via `delegate` with `tasks` array)
 ```
-Agent 1 → Fix agent-tool-abort.test.ts
-Agent 2 → Fix batch-completion-behavior.test.ts
-Agent 3 → Fix tool-approval-race-conditions.test.ts
+delegate:
+  tasks:
+    - teammate: "worker"
+      context: "new"
+      task: "Fix agent-tool-abort.test.ts [full brief]"
+    - teammate: "worker"
+      context: "new"
+      task: "Fix batch-completion-behavior.test.ts [full brief]"
+    - teammate: "worker"
+      context: "new"
+      task: "Fix tool-approval-race-conditions.test.ts [full brief]"
 ```
 
 **Results:**

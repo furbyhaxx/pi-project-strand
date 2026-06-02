@@ -5,9 +5,11 @@ description: Use when completing tasks, implementing major features, or before m
 
 # Requesting Code Review
 
-Dispatch a code reviewer subagent to catch issues before they cascade. The reviewer gets precisely crafted context for evaluation — never your session's history. This keeps the reviewer focused on the work product, not your thought process, and preserves your own context for continued work.
+Delegate to the `reviewer` teammate to catch issues before they cascade. The reviewer gets a precisely crafted task brief — never your session's history.
 
 **Core principle:** Review early, review often.
+
+> **Related skills:** `/skill:frs-strategy` — pass the current FRS knot so quality expectations are calibrated correctly.
 
 ## When to Request Review
 
@@ -38,6 +40,7 @@ Use a general-purpose subagent and fill the template at `code-reviewer.md`.
 - `{PLAN_OR_REQUIREMENTS}` - What it should do
 - `{BASE_SHA}` - Starting commit
 - `{HEAD_SHA}` - Ending commit
+- `{FRS_KNOT}` - Current knot (PoW / Alpha / Beta / ...) — calibrates quality bar
 
 **3. Act on feedback:**
 - Fix Critical issues immediately

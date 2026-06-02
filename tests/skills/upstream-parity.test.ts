@@ -8,7 +8,7 @@ async function file(path: string) {
   return readFile(join(ROOT, path), "utf-8");
 }
 
-describe("upstream parity regressions", () => {
+describe("workflow regressions", () => {
   test("using-git-worktrees includes isolation detection", async () => {
     const text = await file("skills/using-git-worktrees/SKILL.md");
     expect(text).toContain("Step 0: Detect Existing Isolation");
@@ -22,46 +22,24 @@ describe("upstream parity regressions", () => {
     expect(text).toContain("Submodule guard");
   });
 
-  test("finishing-a-development-branch includes provenance cleanup", async () => {
+  test("finishing-a-development-branch includes knot assessment", async () => {
     const text = await file("skills/finishing-a-development-branch/SKILL.md");
+    expect(text).toContain("Step 1.5: Assess Knot Done Criteria");
     expect(text).toContain("Detached HEAD");
-    expect(text).toContain("Only runs for Options 1 and 4");
-    expect(text).toContain("Only clean up worktrees under");
   });
 
-  test("finishing skill never cleans PR worktrees", async () => {
-    const text = await file("skills/finishing-a-development-branch/SKILL.md");
-    expect(text).toContain("Options 2 and 3 always preserve the worktree");
-    expect(text).toContain("Detached HEAD");
-    expect(text).toContain("provenance");
-  });
-
-  test("brainstorming includes hard gate and user review gate", async () => {
+  test("brainstorming includes FRS context and hard gate", async () => {
     const text = await file("skills/brainstorming/SKILL.md");
+    expect(text).toContain("Identify FRS context");
+    expect(text).toContain("Define MVFoS + knot criteria");
     expect(text).toContain("<HARD-GATE>");
-    expect(text).toContain("User reviews written spec");
   });
 
-  test("brainstorming uses a hard gate and checklist", async () => {
-    const text = await file("skills/brainstorming/SKILL.md");
-    expect(text).toContain("<HARD-GATE>");
-    expect(text).toContain("## Checklist");
-    expect(text).toContain("scope decomposition");
-    expect(text).toContain("User reviews written spec");
-  });
-
-  test("writing-plans includes no-placeholders rules", async () => {
+  test("writing-plans includes knot header and no-placeholders rules", async () => {
     const text = await file("skills/writing-plans/SKILL.md");
+    expect(text).toContain("**FRS Knot:**");
+    expect(text).toContain("**Knot Done Criteria:**");
     expect(text).toContain("## No Placeholders");
-    expect(text).toContain("docs/superpowers/plans/");
-  });
-
-  test("writing-plans uses superpowers paths and placeholder rules", async () => {
-    const text = await file("skills/writing-plans/SKILL.md");
-    expect(text).toContain("docs/superpowers/specs/");
-    expect(text).toContain("docs/superpowers/plans/");
-    expect(text).toContain("## No Placeholders");
-    expect(text).toContain("## Self-Review");
   });
 
   test("visual companion guidance exists", async () => {
@@ -69,51 +47,44 @@ describe("upstream parity regressions", () => {
     expect(text).toContain("AskUserQuestion");
   });
 
-  test("visual companion is pi-native, not browser-server specific", async () => {
-    const text = await file("skills/brainstorming/visual-companion.md");
-    expect(text).toContain("AskUserQuestion");
-    expect(text).toContain("preview");
-    expect(text).not.toContain("start-server.sh");
-  });
-
-  test("executing-plans recommends subagent-driven-development first", async () => {
+  test("executing-plans recommends teammate-driven-development first", async () => {
     const text = await file("skills/executing-plans/SKILL.md");
-    expect(text).toContain("works much better with access to subagents");
-    expect(text).toContain("use /skill:subagent-driven-development instead");
-    expect(text).not.toContain("review checkpoints");
+    expect(text).toContain("Teammate-driven execution via `/skill:subagent-driven-development`");
+    expect(text).toContain("inline, non-delegated execution");
   });
 
-  test("subagent-driven-development includes model selection and status handling", async () => {
+  test("subagent-driven-development is delegate-based", async () => {
     const text = await file("skills/subagent-driven-development/SKILL.md");
-    expect(text).toContain("## Model Selection");
-    expect(text).toContain("DONE_WITH_CONCERNS");
-    expect(text).toContain("NEEDS_CONTEXT");
+    expect(text).toContain("delegate worker");
+    expect(text).toContain("teammate: \"worker\"");
+    expect(text).toContain("teammate: \"reviewer\"");
   });
 
-  test("implementer prompt requires explicit status reporting", async () => {
+  test("implementer prompt uses worker teammate brief", async () => {
     const text = await file("skills/subagent-driven-development/implementer-prompt.md");
+    expect(text).toContain('teammate: "worker"');
     expect(text).toContain("Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT");
   });
 
-  test("verification-before-completion includes config-change verification", async () => {
+  test("verification-before-completion includes config-change verification and live validation", async () => {
     const text = await file("skills/verification-before-completion/SKILL.md");
     expect(text).toContain("Verifying Configuration Changes");
-    expect(text).toContain("What should be DIFFERENT after this change?");
+    expect(text).toContain("Live Validation Rule");
   });
 
-  test("testing anti-patterns covers mock-interface drift", async () => {
-    const text = await file("skills/test-driven-development/testing-anti-patterns.md");
-    expect(text).toContain("Mocks Derived from Implementation");
-    expect(text).toContain("derive mock from interface");
-  });
-
-  test("code reviewer prompt explicitly reads files before analysis", async () => {
+  test("requesting-code-review template is reviewer/delegate oriented", async () => {
     const text = await file("skills/requesting-code-review/code-reviewer.md");
-    expect(text).toContain("BEFORE analyzing, read these files");
+    expect(text).toContain('teammate: "reviewer"');
   });
 
   test("bootstrap extension exists", async () => {
     const text = await file("extensions/superpowers-bootstrap.ts");
     expect(text).toContain("before_agent_start");
+  });
+
+  test("frs-strategy skill exists", async () => {
+    const text = await file("skills/frs-strategy/SKILL.md");
+    expect(text).toContain("Feature Realization Strand");
+    expect(text).toContain("MVFoS");
   });
 });

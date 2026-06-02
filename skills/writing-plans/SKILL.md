@@ -3,6 +3,8 @@ name: writing-plans
 description: Use when you have a spec or requirements for a multi-step task, before touching code
 ---
 
+> **Related skills:** `/skill:frs-strategy` defines FRS knots and quality bars — plan must encode the current knot and its done criteria.
+
 # Writing Plans
 
 ## Overview
@@ -15,7 +17,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** If working in an isolated worktree, it should have been created via the `/skill:using-git-worktrees` skill at execution time.
 
-**Spec input:** The approved design spec should normally live under `docs/superpowers/specs/`.
+**Spec input:** The approved design spec should normally live under `docs/superpowers/specs/`. It must contain an FRS Plan section with knot criteria.
 
 **Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
@@ -54,13 +56,21 @@ This structure informs the task decomposition. Each task should produce self-con
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `/skill:subagent-driven-development` (recommended) or `/skill:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
-
+**MVFoS:** [The minimum viable slice — must be real and observable, no stubs]
+**FRS Knot:** [PoW | Alpha | Beta | Gamma | RC1 | RC2 | Release — determines quality bar for all tasks]
 **Architecture:** [2-3 sentences about approach]
-
 **Tech Stack:** [Key technologies/libraries]
+
+**Knot Done Criteria:**
+- Done means: [observable, verifiable condition — not "code is written"]
+- Must provide: [required deliverables for this knot]
+- Must NOT provide: [explicitly out of scope — prevents overbuilding]
+- Validation: [specific commands or steps to prove done criteria]
 
 ---
 ```
+
+**Missing or vague knot done criteria = plan failure.** The implementer cannot know when they are done without them.
 
 ## Task Structure
 
@@ -105,6 +115,16 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+## Knot-Appropriate Task Design
+
+The FRS knot in the plan header determines task content and quality expectations:
+
+**PoW knot:** Tasks focus on proving the approach and establishing design decisions (API shape, patterns, data layout) that later knots will build on. TDD is relaxed — manual validation steps are acceptable. Mark PoW tasks clearly: "(PoW — throwaway, prove concept and establish design decisions)". Do NOT write production error handling, polish, or docs tasks. Include an explicit "Document decisions + evaluate: continue to Alpha or pivot?" task at the end.
+
+**Alpha and beyond:** TDD mandatory. All tasks must include failing test steps. Error handling, logging, and basic documentation required. No skipping test steps.
+
+**Never write a plan that delivers stubs or hollow shells.** If the slice cannot be fully implemented at this knot, narrow the slice — do not ship incomplete scaffolding.
+
 ## No Placeholders
 
 Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
@@ -114,6 +134,7 @@ Every step must contain the actual content an engineer needs. These are **plan f
 - "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
 - Steps that describe what to do without showing how (code blocks required for code steps)
 - References to types, functions, or methods not defined in any task
+- Stub implementations "to be filled in later" (narrow the slice instead)
 
 ## Remember
 - Exact file paths always
@@ -131,6 +152,10 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
+**4. Knot criteria coverage:** Re-read the done criteria in the plan header. Is there a task that provably satisfies each criterion? If a criterion has no task implementing it, add the task. If a criterion cannot be verified with the planned tasks, the criterion or tasks are wrong — fix both.
+
+**5. Stubs and shells check:** Does every deliverable in every task have a real, working implementation? Any stub, placeholder, or "will be wired up later" = plan failure. Narrow the slice.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
 ## Execution Handoff
@@ -139,15 +164,15 @@ After saving the plan, offer execution choice:
 
 **"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
 
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+**1. Teammate-Driven (recommended)** — delegate a fresh `worker` per task via `delegate`, `reviewer` review between tasks, fast iteration
 
-**2. Inline Execution** - Execute tasks in this session using `/skill:executing-plans`, batch execution with checkpoints
+**2. Inline Execution** — execute tasks in this session using `/skill:executing-plans`, batch execution with checkpoints
 
 **Which approach?"**
 
-**If Subagent-Driven chosen:**
+**If Teammate-Driven chosen:**
 - **REQUIRED SUB-SKILL:** Use `/skill:subagent-driven-development`
-- Fresh subagent per task + two-stage review
+- Fresh `worker` per task + two-stage `reviewer` review
 
 **If Inline Execution chosen:**
 - **REQUIRED SUB-SKILL:** Use `/skill:executing-plans`

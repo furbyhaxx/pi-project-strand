@@ -1,7 +1,7 @@
 {
-  "name": "@furbyhaxx/pi-superpowers",
+  "name": "pi-project-strand",
   "version": "0.3.0",
-  "description": "Superpowers workflow skills adapted for pi",
+  "description": "Persistent project-scoped FRS/MVFoS tracking and workflow skills for pi",
   "keywords": [
     "pi-package"
   ],
@@ -9,11 +9,11 @@
   "author": "furbyhaxx",
   "repository": {
     "type": "git",
-    "url": "https://github.com/furbyhaxx/pi-superpowers.git"
+    "url": "https://github.com/furbyhaxx/pi-project-strand.git"
   },
-  "homepage": "https://github.com/furbyhaxx/pi-superpowers#readme",
+  "homepage": "https://github.com/furbyhaxx/pi-project-strand#readme",
   "bugs": {
-    "url": "https://github.com/furbyhaxx/pi-superpowers/issues"
+    "url": "https://github.com/furbyhaxx/pi-project-strand/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -21,7 +21,13 @@
   "files": [
     "extensions/",
     "skills/",
+    "prompts/",
+    "references/",
     "docs/upstream-superpowers-source-map.md",
+    "PROJECT.md",
+    "VISION.md",
+    "ARCHITECTURE.md",
+    "AGENTS.md",
     "banner.jpg",
     "CHANGELOG.md",
     "LICENSE",
@@ -35,20 +41,28 @@
   "pi": {
     "extensions": [
       "extensions/plan-tracker.ts",
+      "extensions/project-tracker.ts",
+      "extensions/project-knowledge.ts",
       "extensions/superpowers-bootstrap.ts"
     ],
     "skills": [
       "skills"
+    ],
+    "prompts": [
+      "prompts"
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
     "typebox": "*"
   },
   "devDependencies": {
     "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
   }
 }

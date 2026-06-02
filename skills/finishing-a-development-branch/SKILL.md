@@ -9,15 +9,17 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 Guide completion of development work by presenting clear options and handling chosen workflow.
 
-**Core principle:** Verify tests → Detect environment → Present options → Execute choice → Clean up.
+**Core principle:** Verify tests → Assess knot criteria → Detect environment → Present options → Execute choice → Clean up.
 
 **Announce at start:** "I'm using the finishing-a-development-branch skill to complete this work."
+
+> **Related skills:** `/skill:frs-strategy` defines knot done criteria. `/skill:verification-before-completion` governs how to verify them.
 
 ## The Process
 
 ### Step 1: Verify Tests
 
-**Before presenting options, verify tests pass:**
+**Before assessing knot criteria, verify tests pass:**
 
 ```bash
 # Run project's test suite
@@ -33,9 +35,39 @@ Tests failing (<N> failures). Must fix before completing:
 Cannot proceed with merge/PR until tests pass.
 ```
 
-Stop. Don't proceed to Step 2.
+Stop. Don't proceed to Step 1.5.
 
-**If tests pass:** Continue to Step 2.
+**If tests pass:** Continue to Step 1.5.
+
+### Step 1.5: Assess Knot Done Criteria
+
+**After tests pass, check if the FRS knot is actually complete.**
+
+Read the plan's `Knot Done Criteria` section:
+
+```bash
+grep -A 10 "Knot Done Criteria" docs/superpowers/plans/*.md
+```
+
+For each criterion:
+1. Identify the validation command or observable check
+2. Run it and capture output
+3. Does it confirm the criterion? YES/NO with evidence
+
+**If any criterion is unmet:**
+```
+Knot not complete. Unmet criteria:
+- [criterion]: [what's missing]
+- [criterion]: [what's missing]
+
+Must address these before merging.
+```
+
+Stop. Return to implementation.
+
+**If all criteria met:** Continue to Step 2. Document the evidence — it will be needed for the user knot sign-off.
+
+**Note:** If this branch is not a knot-completing branch (partial work, hotfix, etc.), skip this step and note it explicitly.
 
 ### Step 2: Detect Environment
 
@@ -68,7 +100,7 @@ Or ask: "This branch split from main - is that correct?"
 **Normal repo and named-branch worktree — present exactly these 4 options:**
 
 ```
-Implementation complete. What would you like to do?
+Implementation complete. Knot criteria verified. What would you like to do?
 
 1. Merge back to <base-branch> locally
 2. Push and create a Pull Request
@@ -117,6 +149,19 @@ Then: Cleanup worktree (Step 6), then delete branch:
 ```bash
 git branch -d <feature-branch>
 ```
+
+**After successful merge \u2014 if this was a knot-completing branch, ask:**
+```
+Merge complete. This branch completed the [knot] knot.
+
+Would you like me to:
+1. Deploy to fw02 for live testing (dry-run build + verification first)
+2. Update CHANGELOG.md with this knot completion
+3. Both
+4. Neither (I'll handle deployment separately)
+```
+
+Do NOT deploy without user approval. Do NOT claim knot sign-off on behalf of the user \u2014 only the user can sign off on a completed knot.
 
 #### Option 2: Push and Create PR
 
@@ -168,9 +213,7 @@ Then: Cleanup worktree (Step 6), then force-delete branch:
 git branch -D <feature-branch>
 ```
 
-### Step 6: Cleanup Workspace
-
-**Only runs for Options 1 and 4.** Options 2 and 3 always preserve the worktree.
+### Step 6: Cleanup Workspace**Only runs for Options 1 and 4.** Options 2 and 3 always preserve the worktree.
 
 ```bash
 GIT_DIR=$(cd "$(git rev-parse --git-dir)" 2>/dev/null && pwd -P)
@@ -201,6 +244,10 @@ git worktree prune  # Self-healing: clean up any stale registrations
 | 4. Discard | - | - | - | yes (force) |
 
 ## Common Mistakes
+
+**Skipping knot assessment**
+- **Problem:** Merging code that doesn't meet knot done criteria
+- **Fix:** Always run Step 1.5 after tests pass; document evidence for user sign-off
 
 **Skipping test verification**
 - **Problem:** Merge broken code, create failing PR
@@ -234,6 +281,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 **Never:**
 - Proceed with failing tests
+- Proceed when knot done criteria are unmet
 - Merge without verifying tests on result
 - Delete work without confirmation
 - Force-push without explicit request

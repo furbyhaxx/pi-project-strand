@@ -3,6 +3,8 @@ name: brainstorming
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
 ---
 
+> **Related skills:** `/skill:frs-strategy` defines the FRS knots and MVFoS methodology — identify knot and define criteria before designing anything.
+
 # Brainstorming Ideas Into Designs
 
 Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
@@ -21,21 +23,25 @@ Every project goes through this process. A todo list, a single-function utility,
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Explore project context** — check files, docs, recent commits
-2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
-3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
-4. **Propose 2-3 approaches** — with trade-offs and your recommendation
-5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit
-7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope decomposition, and oversize-project issues (see below)
-8. **User reviews written spec** — ask user to review the spec file before proceeding
-9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
+1. **Explore project context** — check files, docs, recent commits, existing knot state
+2. **Identify FRS context** — new slice or continuing one? which knot are we targeting? check existing plan/docs. Use `/skill:frs-strategy` for knot definitions.
+3. **Define MVFoS + knot criteria** — name the slice and fill in the knot criteria template (done/must/must-not/nice-to-have/validation). Without criteria, there is no way to know if the design builds the right thing.
+4. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
+5. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
+6. **Propose 2-3 approaches** — with trade-offs and your recommendation
+7. **Present design** — in sections scaled to their complexity, get user approval after each section
+8. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit. Must include FRS Plan section.
+9. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope decomposition, oversize-project issues, and missing/incomplete FRS criteria
+10. **User reviews written spec** — ask user to review the spec file before proceeding
+11. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
 ## Process Flow
 
 ```dot
 digraph brainstorming {
     "Explore project context" [shape=box];
+    "Identify FRS context\n(new slice? which knot?)" [shape=box];
+    "Define MVFoS + knot criteria" [shape=box];
     "Visual questions ahead?" [shape=diamond];
     "Offer Visual Companion\n(own message, no other content)" [shape=box];
     "Ask clarifying questions" [shape=box];
@@ -47,7 +53,9 @@ digraph brainstorming {
     "User reviews spec?" [shape=diamond];
     "Invoke writing-plans skill" [shape=doublecircle];
 
-    "Explore project context" -> "Visual questions ahead?";
+    "Explore project context" -> "Identify FRS context\n(new slice? which knot?)";
+    "Identify FRS context\n(new slice? which knot?)" -> "Define MVFoS + knot criteria";
+    "Define MVFoS + knot criteria" -> "Visual questions ahead?";
     "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
     "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
     "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
@@ -112,6 +120,18 @@ digraph brainstorming {
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
 - Commit the design document to git
+- **The spec MUST include an FRS Plan section:**
+  ```markdown
+  ## FRS Plan
+  **MVFoS**: [slice being built]
+  **Knot**: [PoW | Alpha | Beta | ...]
+  **Done means**: [observable, verifiable condition]
+  **Must provide**: [required deliverables]
+  **Must NOT provide**: [explicitly out of scope]
+  **Nice to have**: [optional extras]
+  **Validation**: [commands/steps to prove done criteria]
+  ```
+  Missing or vague FRS criteria in the spec = spec is not complete. Fix before user review.
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -120,6 +140,7 @@ After writing the spec document, look at it with fresh eyes:
 2. **Internal consistency:** Do any sections contradict each other? Does the architecture match the feature descriptions?
 3. **Scope decomposition check:** Is this focused enough for a single implementation plan, or does it need decomposition into sub-projects first?
 4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
+5. **FRS criteria check:** Does the spec have a complete FRS Plan section? Are done criteria observable and verifiable (not just "code is written")? Are must-not items explicitly listed? Is validation defined with specific commands?
 
 Fix any issues inline. No need to re-review — just fix and move on.
 

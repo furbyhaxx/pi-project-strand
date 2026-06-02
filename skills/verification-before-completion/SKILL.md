@@ -3,6 +3,8 @@ name: verification-before-completion
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
 ---
 
+> **Related skills:** `/skill:frs-strategy` defines knot done criteria that must be verified before claiming any knot is complete.
+
 # Verification Before Completion
 
 ## Overview
@@ -26,6 +28,13 @@ If you haven't run the verification command in this message, you cannot claim it
 ```
 BEFORE claiming any status or expressing satisfaction:
 
+0. KNOT CHECK (if claiming a knot is done):
+   - Read the plan's "Knot Done Criteria" section
+   - Create a checklist from done criteria
+   - Verify EACH criterion with evidence (command + output)
+   - If any criterion is unmet → state what is missing, do NOT claim completion
+   - Pass all criteria → continue to step 1
+
 1. IDENTIFY: What command proves this claim?
 2. RUN: Execute the FULL command (fresh, complete)
 3. READ: Full output, check exit code, count failures
@@ -41,6 +50,7 @@ Skip any step = lying, not verifying
 
 | Claim | Requires | Not Sufficient |
 |-------|----------|----------------|
+| Knot is done | Verify every done criterion with evidence | Tests pass |
 | Tests pass | Test command output: 0 failures | Previous run, "should pass" |
 | Linter clean | Linter output: 0 errors | Partial check, extrapolation |
 | Build succeeds | Build command: exit 0 | Linter passing, logs look good |
@@ -48,6 +58,9 @@ Skip any step = lying, not verifying
 | Regression test works | Red-green cycle verified | Test passes once |
 | Agent completed | VCS diff shows changes | Agent reports "success" |
 | Requirements met | Line-by-line checklist | Tests passing |
+| Daemon/service works | Actually started it, verified logs/behavior | Unit tests pass |
+| Interactive CLI works | Actually ran it interactively | Unit tests pass |
+| Config applied | Observable effect confirmed | No errors on load |
 
 ## Red Flags - STOP
 
@@ -144,10 +157,39 @@ Red flags:
   - Verifying no errors but not positive confirmation
 ```
 
+## Live Validation Rule
+
+For interactive, daemon, and service components — **scripted/unit tests passing ≠ confirmed working.**
+
+**Confirmed working** means: started, used, and interacted with as an end user would.
+
+| Component type | What "confirmed working" requires |
+|----------------|----------------------------------|
+| System daemon / service | Actually started it, verified logs + PID + behavior |
+| CLI tool | Ran it interactively with real inputs, observed output |
+| TUI application | Launched it, navigated it, exercised primary flows |
+| Web / desktop app | Opened it in a browser/OS, clicked through primary flows |
+| Config file applied | Restarted the service, verified observable behavioral change |
+| nftables / network rules | Verified with `nft list ruleset` or traffic test |
+
+**The user is the final validator for live testing** on fw02. AI agents must not claim "confirmed working" for interactive/daemon components without explicit user test confirmation.
+
+## Knot Advancement
+
+BEFORE claiming a knot is complete and advancing to the next:
+
+1. Re-read ALL done criteria from the plan's Knot Done Criteria section
+2. Run each validation command specified and capture output
+3. Present evidence to user: criteria + evidence for each
+4. Wait for user explicit knot sign-off
+5. ONLY THEN: update CHANGELOG.md, plan docs, and advance
+
+Partial criteria met = knot not complete. Never advance with unmet criteria.
+
 ## Why This Matters
 
-From 24 failure memories:
-- your human partner said "I don't believe you" - trust broken
+From failure patterns:
+- User said "I don't believe you" - trust broken
 - Undefined functions shipped - would crash
 - Missing requirements shipped - incomplete features
 - Time wasted on false completion → redirect → rework

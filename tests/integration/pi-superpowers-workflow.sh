@@ -26,17 +26,19 @@ test -f "$PACKAGE_PATH/skills/brainstorming/SKILL.md"
 test -f "$PACKAGE_PATH/skills/brainstorming/visual-companion.md"
 test -f "$PACKAGE_PATH/skills/using-git-worktrees/SKILL.md"
 test -f "$PACKAGE_PATH/extensions/plan-tracker.ts"
+test -f "$PACKAGE_PATH/extensions/project-tracker.ts"
 test -f "$PACKAGE_PATH/extensions/superpowers-bootstrap.ts"
+test -f "$PACKAGE_PATH/skills/frs-strategy/SKILL.md"
 
 (
   cd "$PACKAGE_PATH"
-  node --input-type=module -e 'import jitiFactory from "jiti"; const jiti = jitiFactory(import.meta.url,{interopDefault:true}); const mod = await jiti("./extensions/superpowers-bootstrap.ts"); if (typeof mod.default !== "function" || typeof mod.buildSuperpowersBootstrap !== "function") process.exit(3); console.log(typeof mod.default, typeof mod.buildSuperpowersBootstrap);'
+  node --input-type=module -e 'import jitiFactory from "jiti"; const jiti = jitiFactory(import.meta.url,{interopDefault:true}); const mod = await jiti("./extensions/superpowers-bootstrap.ts"); if (typeof mod.default !== "function" || typeof mod.buildProjectStrandBootstrap !== "function") process.exit(3); console.log(typeof mod.default, typeof mod.buildProjectStrandBootstrap);'
 )
 
 (
   cd "$PACKAGE_PATH"
   npm pack --dry-run > "$TMP_PACK_OUT" 2>&1
 )
-rg -n "@furbyhaxx/pi-superpowers@${PACKAGE_VERSION}|extensions/superpowers-bootstrap.ts|skills/brainstorming/visual-companion.md" "$TMP_PACK_OUT"
+grep -nE "pi-project-strand@${PACKAGE_VERSION}|extensions/project-tracker.ts|skills/frs-strategy/SKILL.md" "$TMP_PACK_OUT"
 
 echo "integration smoke passed"

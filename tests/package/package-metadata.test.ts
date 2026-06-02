@@ -15,14 +15,22 @@ beforeAll(async () => {
 });
 
 describe("package metadata", () => {
-  test("uses the scoped furbyhaxx package name", () => {
-    expect(packageJson.name).toBe("@furbyhaxx/pi-superpowers");
+  test("uses the pi-project-strand package name", () => {
+    expect(packageJson.name).toBe("pi-project-strand");
   });
 
-  test("points repository metadata at the furbyhaxx fork", () => {
-    expect(packageJson.repository?.url).toBe("https://github.com/furbyhaxx/pi-superpowers.git");
-    expect(packageJson.homepage).toBe("https://github.com/furbyhaxx/pi-superpowers#readme");
-    expect(packageJson.bugs?.url).toBe("https://github.com/furbyhaxx/pi-superpowers/issues");
+  test("points repository metadata at pi-project-strand", () => {
+    expect(packageJson.repository?.url).toBe("https://github.com/furbyhaxx/pi-project-strand.git");
+    expect(packageJson.homepage).toBe("https://github.com/furbyhaxx/pi-project-strand#readme");
+    expect(packageJson.bugs?.url).toBe("https://github.com/furbyhaxx/pi-project-strand/issues");
+  });
+
+  test("registers the project knowledge extension", () => {
+    expect(packageJson.pi?.extensions).toContain("extensions/project-knowledge.ts");
+  });
+
+  test("registers the project tracker extension", () => {
+    expect(packageJson.pi?.extensions).toContain("extensions/project-tracker.ts");
   });
 
   test("uses current pi peer dependency scopes", () => {
@@ -33,25 +41,28 @@ describe("package metadata", () => {
       "@earendil-works/pi-tui": "*",
       typebox: "*",
     });
-    expect(Object.keys(packageJson.peerDependencies)).not.toContain("@mariozechner/pi-ai");
-    expect(Object.keys(packageJson.peerDependencies)).not.toContain("@mariozechner/pi-coding-agent");
-    expect(Object.keys(packageJson.peerDependencies)).not.toContain("@mariozechner/pi-tui");
-    expect(Object.keys(packageJson.peerDependencies)).not.toContain("@sinclair/typebox");
+  });
+
+  test("includes jsonc-parser as runtime dependency", () => {
+    expect(packageJson.dependencies).toMatchObject({
+      "jsonc-parser": expect.any(String),
+    });
   });
 });
 
 describe("README install instructions", () => {
-  test("points install commands at the furbyhaxx fork", () => {
-    expect(readme).toContain("pi install git:github.com/furbyhaxx/pi-superpowers");
-    expect(readme).toContain('"packages": ["git:github.com/furbyhaxx/pi-superpowers"]');
+  test("documents local package-path install flow", () => {
+    expect(readme).toContain("pi install -l /root/.pi/agent/custom-extensions/pi-project-strand");
+    expect(readme).toContain('"/root/.pi/agent/custom-extensions/pi-project-strand"');
+  });
+
+  test("documents project jsonc configuration", () => {
+    expect(readme).toContain(".pi/project.jsonc");
+    expect(readme).toContain("state.json");
   });
 
   test("uses current upstream pi repository links", () => {
     expect(readme).toContain("https://github.com/earendil-works/pi");
     expect(readme).not.toContain("https://github.com/badlogic/pi-mono");
-  });
-
-  test("does not reference the old coctostan fork", () => {
-    expect(readme).not.toContain("github.com/coctostan/pi-superpowers");
   });
 });

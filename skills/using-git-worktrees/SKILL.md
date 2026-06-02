@@ -3,6 +3,8 @@ name: using-git-worktrees
 description: Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated workspace exists via native tools or git worktree fallback
 ---
 
+> **Environment note:** Target is Alpine Linux 3.23 (musl). `bash` is available. Git 2.52+ is installed. `npm install` / `poetry install` style setups are not typical — for Rust projects use `cargo build`.
+
 # Using Git Worktrees
 
 ## Overview

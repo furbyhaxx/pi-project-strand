@@ -9,15 +9,16 @@ async function read(path: string) {
 }
 
 describe("README parity", () => {
-  test("documents pi-native bootstrap and visual companion", async () => {
+  test("documents both project_tracker and plan_tracker", async () => {
     const text = await read("README.md");
-    expect(text).toContain("superpowers-bootstrap");
-    expect(text).toContain("AskUserQuestion preview");
+    expect(text).toContain("project_tracker");
+    expect(text).toContain("plan_tracker");
   });
 
-  test("README does not describe executing-plans with stale checkpoint wording", async () => {
+  test("documents project jsonc config and knot advance command", async () => {
     const text = await read("README.md");
-    expect(text).not.toContain("Batch execution with checkpoints for architect review");
+    expect(text).toContain(".pi/project.jsonc");
+    expect(text).toContain("/project:knot:advance");
   });
 
   test("writing-skills no longer claims only two frontmatter fields exist", async () => {
@@ -30,6 +31,5 @@ describe("README parity", () => {
     const text = await read("tests/integration/pi-superpowers-workflow.sh");
     expect(text).toContain("PACKAGE_VERSION=");
     expect(text).toContain("package.json");
-    expect(text).not.toContain("@furbyhaxx/pi-superpowers@0.2.1");
   });
 });

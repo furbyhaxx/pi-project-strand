@@ -15,6 +15,46 @@ Random fixes waste time and create new bugs. Quick patches mask underlying issue
 
 **Violating the letter of this process is violating the spirit of debugging.**
 
+## Infrastructure & System Debugging (Alpine/EdgeOS)
+
+For daemons, network rules, service config, and kernel-level issues, the phase 1 evidence gathering pattern is:
+
+```bash
+# Service / daemon not starting
+journalctl -xe -u <service>      # or: rc-service <service> start
+openrc-run status <service>
+cat /run/<service>.pid 2>/dev/null
+
+# nftables rule problems
+nft list ruleset                  # full ruleset state
+nft -c -f /etc/nftables.conf      # dry-run validate config
+
+# Network / routing
+ip route show; ip addr show
+ip neigh show
+ss -tulpn                         # listening sockets
+
+# Alpine-specific: package / binary issues
+ldd /path/to/binary               # musl ldd — check deps
+file /path/to/binary              # confirm static vs dynamic
+apk info -L <pkg>                 # files owned by package
+apk audit                         # modified files vs package db
+
+# Rust binary panics / errors
+RUST_BACKTRACE=1 /path/to/binary  # full backtrace
+RUST_LOG=debug /path/to/binary    # if using env_logger/tracing
+
+# TOML config issues
+cat /config/<service>.toml        # check syntax, values
+# run daemon with --validate or --dry-run flag if available
+```
+
+**Key Alpine/musl gotcha:** Dynamic binaries linked against glibc will not run on Alpine/musl. If a binary crashes immediately with `Exec format error` or `not found`, check:
+```bash
+file binary             # should say "statically linked" or "musl"
+ldd binary              # musl ldd output differs from glibc ldd
+```
+
 ## The Iron Law
 
 ```
@@ -233,7 +273,7 @@ If you catch yourself thinking:
 
 **If 3+ fixes failed:** Question the architecture (see Phase 4.5)
 
-## your human partner's Signals You're Doing It Wrong
+**your human partner's Signals You're Doing It Wrong**
 
 **Watch for these redirections:**
 - "Is that not happening?" - You assumed without verifying

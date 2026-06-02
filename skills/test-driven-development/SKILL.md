@@ -3,7 +3,7 @@ name: test-driven-development
 description: Use when implementing any feature or bugfix, before writing implementation code
 ---
 
-> **Related skills:** Before claiming done, use `/skill:verification-before-completion` to verify tests actually pass.
+> **Related skills:** Before claiming done, use `/skill:verification-before-completion` to verify tests actually pass. See `/skill:frs-strategy` for the PoW knot exception.
 
 # Test-Driven Development (TDD)
 
@@ -15,18 +15,32 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 **Violating the letter of the rules is violating the spirit of the rules.**
 
+## FRS Knot Exception
+
+**PoW knot only:** TDD is relaxed. Manual/minimal validation is acceptable.
+
+- PoW goal is to quickly validate the approach AND establish the design decisions (API shape, patterns, data layout, architecture) that Alpha will build on — not to ship production code
+- PoW code is **explicitly throwaway** — Alpha starts fresh
+- Do NOT use "this is PoW" to justify skipping TDD outside a declared PoW knot
+- When the plan says Alpha or beyond, TDD is mandatory with no exceptions
+
+**How to confirm you are in PoW:** The plan header must say `**FRS Knot:** PoW`. No plan header = not in PoW = TDD required.
+
 ## When to Use
 
-**Always:**
+**Always (Alpha knot and beyond):**
 - New features
 - Bug fixes
 - Refactoring
 - Behavior changes
 
-**Exceptions (ask your human partner):**
-- Throwaway prototypes
+**PoW knot:**
+- TDD relaxed, but mark code clearly as throwaway
+- Manual validation acceptable
+
+**Exceptions (ask user):**
 - Generated code
-- Configuration files
+- Configuration files without logic
 
 Thinking "skip TDD just this once"? Stop. That's rationalization.
 
