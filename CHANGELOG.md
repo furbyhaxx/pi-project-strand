@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - expanded bootstrap context with FRS/MVFoS foundations, collaboration roles, Key Account Manager behavior, project memory usage, and skill routing
+- required PROJECT.md to include a high-level Planned Features / Capabilities map so agents understand the user's intended end state
+- updated `/project:*` workflows and core planning skills to anchor slices, plans, execution, and verification to PROJECT.md planned capabilities
 - replaced fragile active-slice regex parsing with direct active slice lookup from project tracker state
 
 ## [0.3.0] - 2026-05-20

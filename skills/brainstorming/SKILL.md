@@ -23,7 +23,7 @@ Every project goes through this process. A todo list, a single-function utility,
 
 You MUST create a task for each of these items and complete them in order:
 
-1. **Explore project context** — check files, docs, recent commits, existing knot state
+1. **Explore project context** — check files, docs, recent commits, existing knot state, and `PROJECT.md` Planned Features / Capabilities
 2. **Identify FRS context** — new slice or continuing one? which knot are we targeting? check existing plan/docs. Use `/skill:frs-strategy` for knot definitions.
 3. **Define MVFoS + knot criteria** — name the slice and fill in the knot criteria template (done/must/must-not/nice-to-have/validation). Without criteria, there is no way to know if the design builds the right thing.
 4. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
@@ -77,7 +77,8 @@ digraph brainstorming {
 
 **Understanding the idea:**
 
-- Check out the current project state first (files, docs, recent commits)
+- Check out the current project state first (files, docs, recent commits, active slice/knot)
+- Read `PROJECT.md` Planned Features / Capabilities before design work. This is the user's high-level destination map. If it is missing, stale, or contradicts the requested change, flag that and update/clarify it before designing the slice.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea
@@ -138,9 +139,10 @@ After writing the spec document, look at it with fresh eyes:
 
 1. **Placeholder scan:** Any "TBD", "TODO", incomplete sections, or vague requirements? Fix them.
 2. **Internal consistency:** Do any sections contradict each other? Does the architecture match the feature descriptions?
-3. **Scope decomposition check:** Is this focused enough for a single implementation plan, or does it need decomposition into sub-projects first?
-4. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
-5. **FRS criteria check:** Does the spec have a complete FRS Plan section? Are done criteria observable and verifiable (not just "code is written")? Are must-not items explicitly listed? Is validation defined with specific commands?
+3. **Project direction check:** Does the proposed slice map to an existing `PROJECT.md` planned feature/capability? If not, either update PROJECT.md or explicitly state why this is a new capability.
+4. **Scope decomposition check:** Is this focused enough for a single implementation plan, or does it need decomposition into sub-projects first?
+5. **Ambiguity check:** Could any requirement be interpreted two different ways? If so, pick one and make it explicit.
+6. **FRS criteria check:** Does the spec have a complete FRS Plan section? Are done criteria observable and verifiable (not just "code is written")? Are must-not items explicitly listed? Is validation defined with specific commands?
 
 Fix any issues inline. No need to re-review — just fix and move on.
 

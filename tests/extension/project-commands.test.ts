@@ -49,6 +49,7 @@ describe("project command message builders", () => {
     const text = buildProjectCommandMessage("onboard", "", audit);
     expect(text).toContain("/project:onboard");
     expect(text).toContain("PROJECT.md, VISION.md, ARCHITECTURE.md, and AGENTS.md");
+    expect(text).toContain("Planned Features / Capabilities");
     expect(text).toContain("Seed project_knowledge");
     expect(text).toContain("Do not dump all questions at once");
   });
@@ -70,6 +71,7 @@ describe("project command message builders", () => {
   test("change command enforces dual-write architecture updates", () => {
     const text = buildProjectCommandMessage("change", "rename subsystem", audit);
     expect(text).toContain("/project:change");
+    expect(text).toContain("Planned Features / Capabilities");
     expect(text).toContain("dual-write");
     expect(text).toContain("project_knowledge decision entry");
   });

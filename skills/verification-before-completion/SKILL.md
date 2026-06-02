@@ -30,6 +30,8 @@ BEFORE claiming any status or expressing satisfaction:
 
 0. KNOT CHECK (if claiming a knot is done):
    - Read the plan's "Knot Done Criteria" section
+   - Read the plan's "Planned Capability" and `PROJECT.md` Planned Features / Capabilities
+   - Confirm the completed work advances the intended capability, not just a locally plausible task
    - Create a checklist from done criteria
    - Verify EACH criterion with evidence (command + output)
    - If any criterion is unmet → state what is missing, do NOT claim completion
@@ -51,6 +53,7 @@ Skip any step = lying, not verifying
 | Claim | Requires | Not Sufficient |
 |-------|----------|----------------|
 | Knot is done | Verify every done criterion with evidence | Tests pass |
+| Feature/slice aligns with project direction | `PROJECT.md` planned capability + active slice/plan evidence | Implemented something useful-looking |
 | Tests pass | Test command output: 0 failures | Previous run, "should pass" |
 | Linter clean | Linter output: 0 errors | Partial check, extrapolation |
 | Build succeeds | Build command: exit 0 | Linter passing, logs look good |

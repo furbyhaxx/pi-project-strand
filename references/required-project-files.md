@@ -8,7 +8,9 @@ Use `/project:onboard` to create them interactively when starting a new project.
 
 ## PROJECT.md
 
-**Purpose:** What the project IS right now — components, current state, conventions, key links. Updated as the project evolves.
+**Purpose:** What the project is now AND what the user wants it to become — overview, planned features/capabilities, components, current state, conventions, key links. Updated as the project evolves.
+
+The planned feature/capability list is mandatory. It is the operational destination map agents use to understand the intended end state, avoid local-only decisions, and choose sensible MVFoS slices. `VISION.md` explains why the destination matters; `PROJECT.md` lists what the destination includes.
 
 **Template:**
 
@@ -20,6 +22,13 @@ Use `/project:onboard` to create them interactively when starting a new project.
 ## Overview
 
 [2-3 sentences: purpose, who uses it, what problems it solves]
+
+## Planned Features / Capabilities
+
+| Feature / Capability | Status | Notes |
+|----------------------|--------|-------|
+| [Feature the user ultimately wants] | planned | [Why it matters, known constraints, or related slice] |
+| [Feature already available] | available | [What exists now] |
 
 ## Components
 
@@ -42,7 +51,9 @@ Use `/project:onboard` to create them interactively when starting a new project.
 - Related repos: [if any]
 ```
 
-**Keep it current.** PROJECT.md is the first thing an agent reads when joining a session. Stale status = wasted time re-discovering.
+**Keep it current.** PROJECT.md is the first thing an agent reads when joining a session. Stale status or a missing planned-feature list = wasted time and agents building locally plausible work that misses what the user wants in the end.
+
+**Status values:** Use simple operational labels such as `planned`, `in progress`, `available`, `deferred`, or `rejected`. For rejected capabilities, also add a `project_knowledge` entry with category `rejected` and the rationale.
 
 ---
 

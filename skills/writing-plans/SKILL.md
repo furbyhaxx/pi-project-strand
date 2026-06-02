@@ -17,7 +17,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** If working in an isolated worktree, it should have been created via the `/skill:using-git-worktrees` skill at execution time.
 
-**Spec input:** The approved design spec should normally live under `docs/superpowers/specs/`. It must contain an FRS Plan section with knot criteria.
+**Spec input:** The approved design spec should normally live under `docs/superpowers/specs/`. It must contain an FRS Plan section with knot criteria and should identify which `PROJECT.md` planned feature/capability it advances.
 
 **Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
@@ -25,6 +25,8 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 ## Scope Check
 
 If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+
+Before writing tasks, check `PROJECT.md` Planned Features / Capabilities. The plan must either advance one listed capability or explicitly include a docs/tracker update that adds the new capability. Do not create plans that are locally coherent but disconnected from what the user ultimately wants.
 
 ## File Structure
 
@@ -56,6 +58,7 @@ This structure informs the task decomposition. Each task should produce self-con
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `/skill:subagent-driven-development` (recommended) or `/skill:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
+**Planned Capability:** [PROJECT.md feature/capability this advances]
 **MVFoS:** [The minimum viable slice — must be real and observable, no stubs]
 **FRS Knot:** [PoW | Alpha | Beta | Gamma | RC1 | RC2 | Release — determines quality bar for all tasks]
 **Architecture:** [2-3 sentences about approach]
@@ -70,7 +73,7 @@ This structure informs the task decomposition. Each task should produce self-con
 ---
 ```
 
-**Missing or vague knot done criteria = plan failure.** The implementer cannot know when they are done without them.
+**Missing or vague planned capability or knot done criteria = plan failure.** The implementer cannot know why they are doing the work or when they are done without them.
 
 ## Task Structure
 
@@ -154,7 +157,9 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **4. Knot criteria coverage:** Re-read the done criteria in the plan header. Is there a task that provably satisfies each criterion? If a criterion has no task implementing it, add the task. If a criterion cannot be verified with the planned tasks, the criterion or tasks are wrong — fix both.
 
-**5. Stubs and shells check:** Does every deliverable in every task have a real, working implementation? Any stub, placeholder, or "will be wired up later" = plan failure. Narrow the slice.
+**5. Planned capability coverage:** Does the plan clearly advance the named `PROJECT.md` planned feature/capability? If the capability is missing from PROJECT.md, add a documentation/tracker update task or stop and fix the spec.
+
+**6. Stubs and shells check:** Does every deliverable in every task have a real, working implementation? Any stub, placeholder, or "will be wired up later" = plan failure. Narrow the slice.
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 

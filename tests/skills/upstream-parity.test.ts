@@ -28,15 +28,17 @@ describe("workflow regressions", () => {
     expect(text).toContain("Detached HEAD");
   });
 
-  test("brainstorming includes FRS context and hard gate", async () => {
+  test("brainstorming includes FRS context, planned capability context, and hard gate", async () => {
     const text = await file("skills/brainstorming/SKILL.md");
     expect(text).toContain("Identify FRS context");
     expect(text).toContain("Define MVFoS + knot criteria");
+    expect(text).toContain("PROJECT.md` Planned Features / Capabilities");
     expect(text).toContain("<HARD-GATE>");
   });
 
-  test("writing-plans includes knot header and no-placeholders rules", async () => {
+  test("writing-plans includes planned capability, knot header, and no-placeholders rules", async () => {
     const text = await file("skills/writing-plans/SKILL.md");
+    expect(text).toContain("**Planned Capability:**");
     expect(text).toContain("**FRS Knot:**");
     expect(text).toContain("**Knot Done Criteria:**");
     expect(text).toContain("## No Placeholders");
@@ -82,9 +84,10 @@ describe("workflow regressions", () => {
     expect(text).toContain("before_agent_start");
   });
 
-  test("frs-strategy skill exists", async () => {
+  test("frs-strategy skill exists and anchors MVFoS to planned capabilities", async () => {
     const text = await file("skills/frs-strategy/SKILL.md");
     expect(text).toContain("Feature Realization Strand");
     expect(text).toContain("MVFoS");
+    expect(text).toContain("PROJECT.md` Planned Features / Capabilities");
   });
 });

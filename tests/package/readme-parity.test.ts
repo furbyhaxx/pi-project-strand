@@ -27,6 +27,14 @@ describe("README parity", () => {
     expect(text).not.toContain("Only two fields supported");
   });
 
+  test("required PROJECT.md template includes planned feature map", async () => {
+    const template = await read("references/required-project-files.md");
+    const project = await read("PROJECT.md");
+    expect(template).toContain("## Planned Features / Capabilities");
+    expect(template).toContain("The planned feature/capability list is mandatory");
+    expect(project).toContain("## Planned Features / Capabilities");
+  });
+
   test("integration smoke derives package version dynamically", async () => {
     const text = await read("tests/integration/pi-superpowers-workflow.sh");
     expect(text).toContain("PACKAGE_VERSION=");

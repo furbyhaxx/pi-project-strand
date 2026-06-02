@@ -18,6 +18,26 @@ It is the difference between a stateless session that forgets everything when cl
 | **Knot** | A quality stage within a slice's FRS progression |
 | **Project Memory** | Persistent knowledge graph (`project_knowledge`) + slice/knot tracker (`project_tracker`) |
 
+## Planned Features / Capabilities
+
+This is the high-level destination map for pi-project-strand. It tells future AI agents what the user wants the package to become, not merely what exists today. Individual slices and knots track realization progress; this list anchors direction.
+
+| Capability | Status | Notes |
+|------------|--------|-------|
+| Required project-file onboarding | Available | `/project:onboard` creates or repairs `PROJECT.md`, `VISION.md`, `ARCHITECTURE.md`, and `AGENTS.md` through an LLM-driven workflow. |
+| High-level planned feature map in `PROJECT.md` | In progress | Every onboarded project must expose the intended end-state feature/capability list so agents understand what the user wants long-term. |
+| FRS slice/knot tracking | Available | `project_tracker` persists slices, current knots, criteria, linked plans, milestones, and annotations. |
+| Persistent project knowledge graph | Available | `project_knowledge` stores decisions, rejections, constraints, warnings, howtos, conventions, and notes with relations and path/slice scoping. |
+| Rich slice/knot annotations | Available | `project_tracker slice:annotate` and `knot:annotate` preserve design notes and implementation context. |
+| Project context bootstrap injection | Available | `superpowers-bootstrap.ts` injects FRS foundations, collaboration roles, active slice state, and relevant knowledge each turn. |
+| `/project:*` workflow commands | Available | `/project:onboard`, `/project:brainstorm`, `/project:build`, `/project:implement`, and `/project:change` trigger deterministic audits plus LLM workflows. |
+| Project change consistency workflow | Available | `/project:change` guides updates across docs, tracker state, and knowledge graph entries. |
+| Better project-file audits | Planned | Detect placeholder sections, missing planned-feature lists, stale status, and contradiction between `PROJECT.md`, tracker state, and knowledge entries. |
+| Generic FRS skill | Planned | Remove remaining project-specific assumptions from `frs-strategy` so the package is cleanly reusable outside EdgeOS-style projects. |
+| Command transcript/status items | Planned | Add custom transcript items or status summaries for `/project:*` command audits and workflow transitions. |
+| Wizard-grade UI | Planned | Improve command UX with pi UI dialogs/custom components where deterministic collection is better than free-form prompting. |
+| Packaging/publishing polish | Planned | Finalize npm/package metadata, docs, and installation examples for public sharing. |
+
 ## Components
 
 ### Extensions (TypeScript)
@@ -27,6 +47,7 @@ It is the difference between a stateless session that forgets everything when cl
 | `plan-tracker.ts` | `plan_tracker` | Session-scoped task planning and progress tracking |
 | `project-tracker.ts` | `project_tracker` | Persistent FRS slice/knot state across sessions |
 | `project-knowledge.ts` | `project_knowledge` | Project-scoped knowledge graph (decisions, constraints, etc.) |
+| `project-commands.ts` | `/project:*` | LLM-driven project workflow slash commands |
 | `superpowers-bootstrap.ts` | _(event hook)_ | Injects project context + foundational instructions per turn |
 
 ### Skills

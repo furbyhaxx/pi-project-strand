@@ -93,10 +93,11 @@ Requirements:
 2. Use the deterministic audit above to identify missing or placeholder project files.
 3. Required project files are PROJECT.md, VISION.md, ARCHITECTURE.md, and AGENTS.md.
 4. Read pi-project-strand/references/required-project-files.md before drafting file contents.
-5. If files are missing, interview the user and create them one at a time. Confirm each before moving on.
-6. Initialize or update project_tracker slices/knots only after understanding the project.
-7. Seed project_knowledge with decisions, rejected approaches, constraints, warnings, conventions, and howtos learned during onboarding.
-8. End with a concise summary: created files, initialized state, captured knowledge, suggested next slice.
+5. PROJECT.md must include a high-level Planned Features / Capabilities section. Capture what the user ultimately wants the project to include, not just what exists now.
+6. If files are missing, interview the user and create them one at a time. Confirm each before moving on.
+7. Initialize or update project_tracker slices/knots only after understanding the project and its planned capability map.
+8. Seed project_knowledge with decisions, rejected approaches, constraints, warnings, conventions, and howtos learned during onboarding.
+9. End with a concise summary: created files, initialized state, captured knowledge, planned capability map, suggested next slice.
 
 Do not dump all questions at once. Do not ask the user to implement anything.`;
   }
@@ -108,8 +109,8 @@ Start a pi-project-strand brainstorming workflow for the requested topic.
 
 Requirements:
 1. Load /skill:brainstorming before proceeding.
-2. Check project_tracker status and project_knowledge context before asking design questions.
-3. Surface relevant existing decisions, constraints, and rejected approaches at the start.
+2. Check PROJECT.md Planned Features / Capabilities, project_tracker status, and project_knowledge context before asking design questions.
+3. Surface relevant existing planned capabilities, decisions, constraints, and rejected approaches at the start.
 4. If no topic was provided, ask the user what change/feature/decision to brainstorm.
 5. Follow the brainstorming skill completely: design approval before plan, spec review before implementation.
 6. Persist new decisions and constraints into project_knowledge as they emerge.`;
@@ -122,7 +123,7 @@ Resume or start implementing the active pi-project-strand project slice.
 
 Requirements:
 1. Read project_tracker status, next action, active slice, active knot, criteria, and linked plan status.
-2. Read relevant project_knowledge entries for the active slice and current files.
+2. Read PROJECT.md Planned Features / Capabilities and relevant project_knowledge entries for the active slice and current files.
 3. Route based on state:
    - Active slice + linked plan: resume with /skill:executing-plans or /skill:subagent-driven-development.
    - Active slice + knot criteria but no plan: use /skill:writing-plans first.
@@ -138,13 +139,14 @@ Requirements:
 Run a pi-project-strand project change workflow.
 
 Requirements:
-1. Identify what is changing: PROJECT.md, VISION.md, ARCHITECTURE.md, AGENTS.md, project_tracker slices/knots/criteria, project_knowledge, or implementation plans.
+1. Identify what is changing: PROJECT.md (including Planned Features / Capabilities), VISION.md, ARCHITECTURE.md, AGENTS.md, project_tracker slices/knots/criteria, project_knowledge, or implementation plans.
 2. Ask focused clarification if the requested change is ambiguous.
 3. Assess impact before editing: active knot criteria, architecture consistency, superseded knowledge, dependent slices.
-4. For architecture changes, dual-write: update the relevant doc and add/update a project_knowledge decision entry with rationale.
-5. For rejected paths, use project_knowledge category rejected and link/supersede related decisions when appropriate.
-6. Verify docs/tracker/knowledge consistency after the change.
-7. Commit with a conventional commit message only after verification.
+4. For planned-feature changes, update PROJECT.md and consider whether project_tracker slices must be created, held, completed, or reprioritized.
+5. For architecture changes, dual-write: update the relevant doc and add/update a project_knowledge decision entry with rationale.
+6. For rejected paths, use project_knowledge category rejected and link/supersede related decisions when appropriate.
+7. Verify docs/tracker/knowledge consistency after the change.
+8. Commit with a conventional commit message only after verification.
 
 Do not proceed with unclear architectural changes without user approval.`;
 }

@@ -56,9 +56,12 @@ The output of PoW is a **decision and a direction** — not production code.
 ## MVFoS Selection
 
 Pick the **next minimum slice** that:
-1. Delivers real, observable value — **no hollow shells, stubs, or placeholders**
-2. Can be independently tested and understood
-3. Has a clear, verifiable done condition
+1. Maps to the user's high-level planned feature/capability list in `PROJECT.md` — or updates that list first if this is a new capability
+2. Delivers real, observable value — **no hollow shells, stubs, or placeholders**
+3. Can be independently tested and understood
+4. Has a clear, verifiable done condition
+
+`PROJECT.md` Planned Features / Capabilities is the destination map. FRS slices are how that destination becomes real. If the planned feature list is missing, stale, or contradicts the proposed slice, stop and clarify/update it before defining MVFoS criteria. Otherwise agents will happily optimize the wrong future, because apparently they need the obvious written down.
 
 **Prefer vertical slices** (end-to-end feature). Use horizontal slices (cross-cutting concerns: config loading, logging, error framework) only when they block multiple vertical slices.
 

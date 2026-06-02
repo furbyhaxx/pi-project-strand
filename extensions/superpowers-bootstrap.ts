@@ -44,7 +44,7 @@ Load \`/skill:frs-strategy\` for full methodology and quality bars per knot.
 
 ### Required Project Files
 Every project should have these files. If any are missing, flag it and offer \`/project:onboard\`.
-- **PROJECT.md** — what it is, components, conventions, current state
+- **PROJECT.md** — what it is, high-level planned features/capabilities, components, conventions, current state
 - **VISION.md** — vision, goals, non-goals, design principles  
 - **ARCHITECTURE.md** — decisions, patterns, constraints, tech stack
 - **AGENTS.md** — build commands, conventions, do-nots specifically for AI agents

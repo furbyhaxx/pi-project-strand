@@ -19,11 +19,12 @@ Load plan, review critically, execute all tasks inline, report when complete.
 
 ### Step 1: Load and Review Plan
 1. Read plan file
-2. **Extract FRS context:** MVFoS, current knot, and knot done criteria from plan header
-3. Review critically - identify any questions or concerns about the plan
-4. Note the knot: it determines quality expectations for every task (PoW = relaxed, Alpha+ = TDD mandatory)
-5. If concerns: Raise them with your human partner before starting
-6. If no concerns: Create `plan_tracker` entries and proceed
+2. **Extract project direction:** Planned Capability, MVFoS, current knot, and knot done criteria from plan header
+3. Check `PROJECT.md` Planned Features / Capabilities. If the plan's capability is missing or contradictory, stop and raise this before executing.
+4. Review critically - identify any questions or concerns about the plan
+5. Note the knot: it determines quality expectations for every task (PoW = relaxed, Alpha+ = TDD mandatory)
+6. If concerns: Raise them with your human partner before starting
+7. If no concerns: Create `plan_tracker` entries and proceed
 
 ### Step 2: Execute Tasks
 
@@ -37,10 +38,11 @@ For each task:
 
 After all tasks complete and verified:
 1. **Verify knot done criteria** — re-read the plan's Knot Done Criteria section; run each validation command; confirm all criteria are met with evidence
-2. If any criterion unmet: return to implementation, fix the gap
-3. Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-4. **REQUIRED SUB-SKILL:** Use `/skill:finishing-a-development-branch`
-5. Follow that skill to verify tests, assess knot criteria, present options, execute choice
+2. **Verify project direction** — confirm the completed work advances the named `PROJECT.md` planned capability and update PROJECT.md status if appropriate
+3. If any criterion unmet: return to implementation, fix the gap
+4. Announce: "I'm using the finishing-a-development-branch skill to complete this work."
+5. **REQUIRED SUB-SKILL:** Use `/skill:finishing-a-development-branch`
+6. Follow that skill to verify tests, assess knot criteria, present options, execute choice
 
 ## When to Stop and Ask for Help
 
