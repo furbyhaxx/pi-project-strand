@@ -4,7 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — BREAKING (project strand redesign; no runtime back-compat — `/mnt/Projects` migrated once)
+- **state model rewritten** to be persistent-record-centric: each slice embeds its own named `strand` whose `knots[]` are durable records that accumulate goals, individually-verified `success_criteria` (with per-criterion evidence + `met_at`), an optional per-knot `plan`, and `resources`. Nothing is erased on completion — replaces the old transient `active_knot` + lossy `knot_history` (which discarded criteria) and the per-knot-wiped `active_plan`.
+- **config**: `.pi/project.jsonc` now defines named `strands` (templates) instead of a single flat `knots` array. Strands are seed-only — snapshotted onto a slice at creation, with no runtime relation back to config and no default strand. Ships built-in `quick` (Prototype→Realization→Finalization) and `granular` (Proof-of-Work→…→Release) strands.
+- **`project_tracker` action surface tightened** to 20 actions sharing a lean param schema: cross-cutting `verify_criterion` / `annotate` / `resource:add` / `resource:remove` use a `target: "slice" | "knot"` discriminator; `knot:sign_off` (lossless) and `slice:sign_off` replace the old advance flow; added `slice:update`, `knot:update`, `knot:set_plan`. Errors stay in-band and name the fix.
+- replaced `/project:brainstorm` with `/project:new:slice` — an interactive funnel that captures the slice goal + success criteria, selects a strand via `ask_user_question` (per-option previews + recommendation), and creates the slice as `defined`.
+- added `/project:slice:advance` for final slice sign-off; `/project:knot:advance` now signs off the active knot under the new model.
+
 ### Added
+- persistent per-knot `goals`, verifiable `success_criteria`, `plan`, and `resources`, plus slice-level `goal` + `success_criteria` and `resources` (`doc|file|url|report|memory|knowledge`).
+- one-shot legacy state migration: pure `migrateLegacyState` (Pass-1 mechanical transform, unit-tested) + throwaway `scripts/migrate-state.ts` runner; Pass-2 is an interactive per-slice agent backfill that clarifies missing fields with the user (design §9).
 - added `ask_user_question` tool (snake_case, shipped with pi-project-strand) replicating the Claude Code AskUserQuestion TUI — bordered box, chip-tab navigation, preview pane, notes mode, multi-select, Other… escape hatch, double-Esc dismiss with `terminate: true`
 - added `knot:complete_fast_forward` action to `project_tracker` for agents to close an executed fast-forward plan
 - added `/project:knot:fast_forward <slice-id>` slash command — opens an editor where the user picks a target knot and writes instructions; the agent then synthesizes a combined action plan (from squashed knot quality bars + user instructions), presents it for approval, executes it, and records a single `fast-forward` history entry
