@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
 - added `project-commands` extension with `/project:onboard`, `/project:brainstorm`, `/project:build`, `/project:implement`, and `/project:change` slash commands backed by `pi.sendUserMessage(...)`
 - added required project file templates and self-documentation files (`PROJECT.md`, `VISION.md`, `ARCHITECTURE.md`, `AGENTS.md`)
 
+### Fixed
+- `ask_user_question` no longer crashes the agent on narrow terminals (e.g. a desktop→mobile SSH resize). The dialog forced a 40-column minimum box width and truncated to it, so on a 28-column terminal every rendered line exceeded the terminal width and pi-tui threw `Rendered line exceeds terminal width`. Box layout now clamps to the live terminal width (extracted as tested pure `boxLayoutWidth`), guards `innerWidth`, and the final truncate uses the live width
+
 ### Changed
 - `buildProjectStrandContext` now returns `{ text, activeSliceId }` and uses a single `loadState` call (was two), eliminating a redundant third call in the bootstrap hook
 - `buildProjectStrandContext` emits a `⚡ FAST-FORWARD PENDING` context block when a fast-forward is in-flight, including per-knot focus descriptions and the required 4-step agent instruction (load skill → synthesize plan → get approval → complete)

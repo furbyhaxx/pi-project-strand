@@ -246,6 +246,23 @@ function padAnsi(text: string, width: number): string {
   return text + " ".repeat(Math.max(0, width - visibleWidth(text)));
 }
 
+/**
+ * Layout width for the question box.
+ *
+ * MUST never exceed the actual terminal width: pi-tui throws
+ * "Rendered line exceeds terminal width" (and crashes the agent) if any
+ * rendered line is wider than the terminal. This happens on narrow terminals
+ * — e.g. a phone SSH session, or a desktop→mobile resize mid-dialog.
+ *
+ * We keep a lower guard of 1 so internal box math (innerWidth = width - 4,
+ * `"─".repeat(width - 2)`) never goes degenerate, but we NEVER widen past the
+ * real terminal width. The final render also truncates to the live width as a
+ * belt-and-suspenders guarantee for the width === 0 edge.
+ */
+export function boxLayoutWidth(terminalWidth: number): number {
+  return Math.max(1, terminalWidth);
+}
+
 export function wrapInlineItems(items: string[], width: number): string[] {
   const safe = Math.max(1, width);
   const lines: string[] = [];
@@ -779,8 +796,8 @@ export default function askUserQuestionExtension(pi: ExtensionAPI) {
 
             function render(width: number): string[] {
               if (cachedLines) return cachedLines;
-              const safeWidth = Math.max(40, width);
-              const innerWidth = safeWidth - 4;
+              const safeWidth = boxLayoutWidth(width);
+              const innerWidth = Math.max(1, safeWidth - 4);
               const lines: string[] = [];
               const q = currentQuestion();
               const title = onSubmitTab()
@@ -839,7 +856,10 @@ export default function askUserQuestionExtension(pi: ExtensionAPI) {
               addBoxLine(lines, theme.fg("dim", controls), innerWidth);
               lines.push(theme.fg("accent", `╰${"─".repeat(safeWidth - 2)}╯`));
 
-              cachedLines = lines.map((l) => truncateToWidth(l, safeWidth));
+              // Truncate to the LIVE terminal width, never the (guarded) layout
+              // width — this is the hard guarantee that no line exceeds the
+              // terminal, even if width is 0 and safeWidth was floored to 1.
+              cachedLines = lines.map((l) => truncateToWidth(l, Math.max(0, width)));
               return cachedLines;
             }
 
