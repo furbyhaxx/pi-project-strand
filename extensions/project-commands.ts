@@ -4,7 +4,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 const REQUIRED_PROJECT_FILES = ["PROJECT.md", "VISION.md", "ARCHITECTURE.md", "AGENTS.md"] as const;
 
-type ProjectCommand = "onboard" | "new:slice" | "build" | "change";
+type ProjectCommand = "onboard" | "new:slice" | "new:strand" | "build" | "change";
 
 export interface ProjectAudit {
   cwd: string;
@@ -118,6 +118,23 @@ Requirements:
 Do not dump all questions at once. Do not ask the user to implement anything. Respect the design-approval gate before any implementation work.`;
   }
 
+  if (command === "new:strand") {
+    return `${header}
+
+Run the pi-project-strand new-strand authoring workflow: an interactive, LLM-driven process that designs a custom strand (a reusable, ordered knot sequence) and writes it into .pi/project.jsonc under "strands".
+
+A strand is a SEED-ONLY template. It is snapshotted into a slice when that slice is created via /project:new:slice. Editing or deleting it later never affects existing slices.
+
+Requirements:
+1. Load context first: read .pi/project.jsonc (note the strands already defined), PROJECT.md Planned Features / Capabilities, and relevant project_knowledge. Understand the kind of work this strand is for before proposing anything.
+2. Clarify the use case ONE question at a time (optionally via ask_user_question): what kind of work the strand targets, and the intended granularity (few coarse knots vs. many fine-grained gates). Contrast with the built-in quick/granular strands so the user picks a distinct, useful shape.
+3. Propose an ordered knot sequence: for each knot give a short name and a one-line focus (what that knot is about / its quality bar). Present the full sequence and CONFIRM with the user before writing. Refine until the user approves.
+4. Write it: call project_strand action=define name=<strand-name> description=<when-to-use> knots=[{name, focus}, ...]. The tool validates (unique name, >=1 knot, unique knot names, every knot has a focus) and returns an in-band error if invalid — fix and retry, do not fabricate.
+5. On success, tell the user the strand is now available to /project:new:slice and summarize the knot sequence.
+
+Do not dump all questions at once. Do not start any implementation work.`;
+  }
+
   if (command === "build") {
     return `${header}
 
@@ -177,6 +194,14 @@ export default function projectCommandsExtension(pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const audit = await auditProject(ctx.cwd);
       sendProjectCommand(pi, ctx, buildProjectCommandMessage("new:slice", args, audit));
+    },
+  });
+
+  pi.registerCommand("project:new:strand", {
+    description: "Interactively design a custom strand (knot sequence) and add it to project.jsonc",
+    handler: async (args, ctx) => {
+      const audit = await auditProject(ctx.cwd);
+      sendProjectCommand(pi, ctx, buildProjectCommandMessage("new:strand", args, audit));
     },
   });
 

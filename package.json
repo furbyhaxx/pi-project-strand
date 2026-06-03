@@ -42,6 +42,7 @@
       "extensions/ask-user-question.ts",
       "extensions/plan-tracker.ts",
       "extensions/project-tracker.ts",
+      "extensions/project-strand.ts",
       "extensions/project-knowledge.ts",
       "extensions/project-commands.ts",
       "extensions/superpowers-bootstrap.ts"

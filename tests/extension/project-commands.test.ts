@@ -29,6 +29,7 @@ describe("project command registration", () => {
     expect(names).toEqual([
       "project:onboard",
       "project:new:slice",
+      "project:new:strand",
       "project:build",
       "project:implement",
       "project:change",
