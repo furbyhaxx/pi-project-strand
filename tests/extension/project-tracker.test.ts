@@ -109,6 +109,14 @@ describe("slice lifecycle", () => {
     state = handleSliceHold(state, "dns-cache").state;
     expect(state.slices[0]!.status).toBe("on_hold");
   });
+
+  test("update can replace slice-level success_criteria (used by migration backfill)", () => {
+    const state = handleSliceUpdate(withSlice(), "dns-cache", { criteria: ["new crit a", "new crit b"] }).state;
+    expect(state.slices[0]!.success_criteria).toEqual([
+      { text: "new crit a", met: false },
+      { text: "new crit b", met: false },
+    ]);
+  });
 });
 
 describe("knot start/update/plan", () => {

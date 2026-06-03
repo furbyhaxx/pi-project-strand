@@ -304,6 +304,7 @@ export interface SliceUpdateInput {
   goal?: string;
   priority?: number;
   type?: SliceType;
+  criteria?: string[];
 }
 
 export function handleSliceUpdate(state: ProjectState, sliceId: string | undefined, patch: SliceUpdateInput): ActionResult {
@@ -315,6 +316,7 @@ export function handleSliceUpdate(state: ProjectState, sliceId: string | undefin
   if (patch.goal?.trim()) slice.goal = patch.goal.trim();
   if (typeof patch.priority === "number") slice.priority = patch.priority;
   if (patch.type) slice.type = patch.type;
+  if (patch.criteria) slice.success_criteria = patch.criteria.map((text) => ({ text, met: false }));
   return { text: `Updated slice ${slice.id}`, state: touch(normalizeState(current)) };
 }
 

@@ -3,9 +3,10 @@ import type { ProjectState, Slice, StrandTemplate, SuccessCriterion } from "./pr
 
 /**
  * Pass-1 mechanical migration from the legacy (transient) state shape to the new
- * persistent strand/knot model. THROWAWAY: used once on /mnt/Projects then removed.
+ * persistent strand/knot model. This is the deterministic engine behind the
+ * `/project:migrate` command; the interactive Pass-2 backfill runs afterward.
  * Missing rich fields (slice goal/success_criteria, per-knot goals) are left empty
- * for the interactive Pass-2 agent backfill (see design §9).
+ * for the Pass-2 agent backfill (see design §9 and `/project:migrate`).
  */
 export function migrateLegacyState(legacy: any, strandTemplate: StrandTemplate, strandName: string): ProjectState {
   const slices: Slice[] = (legacy.slices ?? []).map((old: any) => {

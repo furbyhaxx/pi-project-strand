@@ -42,6 +42,7 @@ import {
   handleResourceRemove,
   handleMilestoneAdd,
 } from "./project-tracker-core.js";
+import { migrateLegacyState } from "./project-tracker-migrate.js";
 
 const DEFAULTS = { stateFile: ".pi/project/state.json" } as const;
 
@@ -294,6 +295,30 @@ export async function buildProjectStrandContext(cwd: string): Promise<{ text: st
   return { text: parts.join("\n\n"), activeSliceId };
 }
 
+/** A state file is legacy if any slice predates the strand model (no `strand` field). */
+function isLegacyState(parsed: any): boolean {
+  if (!parsed || !Array.isArray(parsed.slices)) return false;
+  return parsed.slices.some((s: any) => s && typeof s === "object" && s.strand === undefined);
+}
+
+const MIGRATE_PASS2_MESSAGE = [
+  `<pi-project-strand-command name="/project:migrate">`,
+  `Pass-1 mechanical migration of state.json is complete (a .bak backup was written). Now run the interactive Pass-2 backfill.`,
+  ``,
+  `The legacy format lacked fields the new model needs. Work through the slices ONE AT A TIME. CLARIFY WITH THE USER whenever a value cannot be confidently derived — never fabricate or silently leave important fields empty.`,
+  ``,
+  `For each slice:`,
+  `1. Read it: project_tracker action=slice:get slice_id=<id>. Gather evidence from each knot's validation_evidence_summary, linked plan files, project_knowledge entries for the slice, PROJECT.md/VISION.md, and \`git log\`.`,
+  `2. Goal + success criteria: propose a concise slice \`goal\` and slice-level \`success_criteria\` ("what done means"). Confirm with the user, then apply: project_tracker action=slice:update slice_id=<id> goal=<...> criteria=[...].`,
+  `3. Active knot (if any): propose \`goals\` for the in-progress knot and apply project_tracker action=knot:update slice_id=<id> goals=[...]. Its success_criteria carried over from the legacy criteria — verify they still read correctly.`,
+  `4. Resources: attach relevant pointers (knowledge ids, plan paths, reports) via project_tracker action=resource:add.`,
+  `5. Historical signed-off / fast-forwarded knots keep their validation_evidence_summary; per-criterion detail is NOT reconstructed — tell the user this.`,
+  `6. Optional tidy-up: if .pi/project.jsonc still has a stale top-level \`knots\` array, offer to remove it; optionally formalize the migrated sequence as a named strand via /project:new:strand.`,
+  ``,
+  `When all slices are done, summarize what you reconstructed and every point you asked the user about.`,
+  `</pi-project-strand-command>`,
+].join("\n");
+
 export default function (pi: ExtensionAPI) {
   for (const event of ["session_start", "session_switch", "session_fork", "session_tree"] as const) {
     pi.on(event, async (_event, ctx) => {
@@ -362,6 +387,7 @@ export default function (pi: ExtensionAPI) {
               goal: params.goal,
               priority: params.priority,
               type: params.type as SliceType | undefined,
+              criteria: params.criteria,
             })
           );
           break;
@@ -642,6 +668,57 @@ export default function (pi: ExtensionAPI) {
       const result = await mutateState(ctx.cwd, (fresh) => handleKnotFastForward(fresh, sliceId, targetKnot, instructions));
       await updateWidget(ctx);
       await showText(ctx, "Fast-forward initiated", result.text);
+    },
+  });
+
+  pi.registerCommand("project:migrate", {
+    description: "Migrate legacy project state to the strand model (Pass-1 mechanical + interactive Pass-2 backfill)",
+    handler: async (_args, ctx) => {
+      const runtime = await loadProjectConfig(ctx.cwd);
+      if (!(await exists(runtime.statePath))) {
+        ctx.ui.notify("No state.json found — nothing to migrate.", "info");
+        return;
+      }
+      const raw = await readFile(runtime.statePath, "utf-8");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        ctx.ui.notify("state.json is not valid JSON — aborting migration.", "error");
+        return;
+      }
+      if (!isLegacyState(parsed)) {
+        ctx.ui.notify("state.json already uses the strand model — nothing to migrate.", "info");
+        return;
+      }
+
+      // Prefer the project's OLD knot sequence (if project.jsonc still has a flat `knots` array)
+      // so legacy knot names map exactly; otherwise fall back to the granular default.
+      let template = runtime.strands.granular ?? DEFAULT_STRANDS.granular;
+      let strandName = "granular";
+      if (await exists(runtime.configPath)) {
+        const cfg = parse(await readFile(runtime.configPath, "utf-8")) as { knots?: Array<{ name: string; focus?: string }> } | undefined;
+        if (cfg?.knots && cfg.knots.length > 0) {
+          template = { description: "Migrated from the legacy knot sequence", knots: cfg.knots.map((k) => ({ name: k.name, focus: k.focus ?? "" })) };
+          strandName = "legacy";
+        }
+      }
+
+      await writeFile(`${runtime.statePath}.bak`, raw, "utf-8");
+      const migrated = migrateLegacyState(parsed, template, strandName);
+      await atomicWriteState(runtime.statePath, migrated);
+      await updateWidget(ctx);
+      ctx.ui.notify(
+        `Pass-1 migration complete: ${migrated.slices.length} slice(s) → "${strandName}" strand. Backup at ${runtime.statePath}.bak. Starting interactive Pass-2 backfill…`,
+        "info"
+      );
+
+      if (ctx.isIdle()) {
+        pi.sendUserMessage(MIGRATE_PASS2_MESSAGE);
+      } else {
+        pi.sendUserMessage(MIGRATE_PASS2_MESSAGE, { deliverAs: "followUp" });
+        ctx.ui.notify("Queued Pass-2 backfill for after the current turn", "info");
+      }
     },
   });
 }
