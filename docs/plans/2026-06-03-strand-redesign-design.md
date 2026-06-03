@@ -3,7 +3,7 @@
 - **Date:** 2026-06-03
 - **Status:** Draft for review
 - **Scope:** Replace the single-sequence, transient knot model with named, slice-embedded strands of **persistent** knot records; add an interactive `/project:new:slice` funnel; design `/project:new:strand` authoring.
-- **Implementation phasing:** **A + B now**, **C design-only now** (implement later).
+- **Implementation phasing:** **A + B + C implemented** (2026-06-03, v0.4.0). Migration shipped as the interactive `/project:migrate` command.
 - **Backwards compatibility:** none required at runtime. Only `/mnt/Projects` uses this package; it gets a one-shot comprehensive migration.
 
 ---
@@ -316,14 +316,14 @@ ask_user_question:
 
 ---
 
-## 8. C — `/project:new:strand` authoring (design only; implement later)
+## 8. C — `/project:new:strand` authoring (IMPLEMENTED v0.4.0)
 
 `/project:new:strand <request>` runs an interactive, LLM-driven workflow that designs a custom strand and writes it into `.pi/project.jsonc` under `strands`.
 
 - Because `project.jsonc` is **user config** (not tool-managed state like `state.json`/`knowledge.json`), the agent edits it directly (Read + Edit/Write of the JSONC), preserving comments where practical.
 - A deterministic, **exported + unit-tested** helper validates a proposed strand (unique name, ≥1 knot, unique ordered knot names, each knot has `focus`) and produces the JSONC insertion. The command handler follows the standard `auditProject` + `pi.sendUserMessage` pattern.
 - Workflow: clarify the use case → propose knot sequence with focus per knot (one step at a time) → confirm → validate → write to `project.jsonc` → confirm availability for future `/project:new:slice` runs.
-- Implementation deferred; this section is the agreed spec.
+- Implemented in v0.4.0 as `extensions/strand-authoring-core.ts` (pure validate + JSONC insert), the `project_strand` tool (`define` action), and the `/project:new:strand` command.
 
 ---
 

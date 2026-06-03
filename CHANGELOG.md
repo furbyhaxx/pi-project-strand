@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-03
+
 ### Changed — BREAKING (project strand redesign; no runtime back-compat — `/mnt/Projects` migrated once)
 - **state model rewritten** to be persistent-record-centric: each slice embeds its own named `strand` whose `knots[]` are durable records that accumulate goals, individually-verified `success_criteria` (with per-criterion evidence + `met_at`), an optional per-knot `plan`, and `resources`. Nothing is erased on completion — replaces the old transient `active_knot` + lossy `knot_history` (which discarded criteria) and the per-knot-wiped `active_plan`.
 - **config**: `.pi/project.jsonc` now defines named `strands` (templates) instead of a single flat `knots` array. Strands are seed-only — snapshotted onto a slice at creation, with no runtime relation back to config and no default strand. Ships built-in `quick` (Prototype→Realization→Finalization) and `granular` (Proof-of-Work→…→Release) strands.
@@ -12,8 +14,10 @@ All notable changes to this project will be documented in this file.
 - added `/project:slice:advance` for final slice sign-off; `/project:knot:advance` now signs off the active knot under the new model.
 
 ### Added
+- `/project:new:strand` slash command + focused `project_strand` tool to interactively author custom named strands into `.pi/project.jsonc` (validated, comment-preserving JSONC writes via `jsonc-parser`).
+- `/project:migrate` slash command: interactive one-shot migration of a legacy `state.json` to the strand model — deterministic Pass-1 mechanical transform (`migrateLegacyState`, unit-tested; prefers the project's old `knots` sequence so knot names map exactly, else `granular`) writing a `.bak` backup, followed by an LLM-driven Pass-2 per-slice backfill of goal/success_criteria/resources that clarifies unknowns with the user instead of guessing.
+- `slice:update` now accepts `criteria` to (re)set slice-level success criteria (also used by the migration backfill).
 - persistent per-knot `goals`, verifiable `success_criteria`, `plan`, and `resources`, plus slice-level `goal` + `success_criteria` and `resources` (`doc|file|url|report|memory|knowledge`).
-- one-shot legacy state migration: pure `migrateLegacyState` (Pass-1 mechanical transform, unit-tested) + throwaway `scripts/migrate-state.ts` runner; Pass-2 is an interactive per-slice agent backfill that clarifies missing fields with the user (design §9).
 - added `ask_user_question` tool (snake_case, shipped with pi-project-strand) replicating the Claude Code AskUserQuestion TUI — bordered box, chip-tab navigation, preview pane, notes mode, multi-select, Other… escape hatch, double-Esc dismiss with `terminate: true`
 - added `knot:complete_fast_forward` action to `project_tracker` for agents to close an executed fast-forward plan
 - added `/project:knot:fast_forward <slice-id>` slash command — opens an editor where the user picks a target knot and writes instructions; the agent then synthesizes a combined action plan (from squashed knot quality bars + user instructions), presents it for approval, executes it, and records a single `fast-forward` history entry
