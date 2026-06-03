@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { buildProjectStrandContext, getActiveSliceId } from "./project-tracker.js";
+import { buildProjectStrandContext } from "./project-tracker.js";
 import { buildKnowledgeContext } from "./project-knowledge.js";
 
 export function buildProjectStrandBootstrap(): string {
@@ -83,13 +83,10 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     const parts = [event.systemPrompt, buildProjectStrandBootstrap()];
 
-    const projectContext = await buildProjectStrandContext(ctx.cwd);
-    if (projectContext) parts.push(projectContext);
+    const projectResult = await buildProjectStrandContext(ctx.cwd);
+    if (projectResult) parts.push(projectResult.text);
 
-    // Get active slice ID directly from state — no fragile string parsing
-    const activeSliceId = await getActiveSliceId(ctx.cwd);
-
-    const knowledgeContext = await buildKnowledgeContext(ctx.cwd, activeSliceId, ctx.cwd);
+    const knowledgeContext = await buildKnowledgeContext(ctx.cwd, projectResult?.activeSliceId, ctx.cwd);
     if (knowledgeContext) parts.push(knowledgeContext);
 
     return { systemPrompt: parts.join("\n\n") };
