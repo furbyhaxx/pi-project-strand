@@ -9,13 +9,70 @@ description: Use when defining scope for a new feature or slice, identifying the
 
 > **Related skills:** `/skill:brainstorming` applies FRS during design. `/skill:writing-plans` encodes knot criteria in every plan. `/skill:verification-before-completion` checks knot criteria before claiming done.
 
-## FRS Knots
+## Slices and Strands
 
-Every feature or slice advances through knots in order. Knots are not skipped without explicit user approval.
+Every feature is a **slice**. Each slice follows a **strand** — a named, ordered sequence of **knots** (quality stages). A slice advances knot by knot; knots are not skipped without explicit user approval.
+
+**Strands are configurable.** They are templates defined per project under `strands` in `.pi/project.jsonc` (each entry has a `description` and an ordered list of `knots`, each with a `name` and a `focus`). When a slice is created, the chosen strand is **snapshotted** onto the slice — the slice is self-contained from then on, so later edits to the project template do not retroactively alter existing slices.
+
+**Built-in default strands:**
+
+| Strand | Knots | When |
+|--------|-------|------|
+| **quick** | Prototype → Realization → Finalization | Simple, scoped, or smaller work |
+| **granular** | Proof-of-Work → Alpha → Beta → Gamma → RC1 → RC2 → Release | Complex or large-scope work |
+
+Projects may define their own strands; pick the strand whose granularity matches the work.
+
+## Slice goals vs. knot goals
+
+There are **two** levels of goal + success criteria. Keep them distinct:
+
+- **Slice-level `goal` + `success_criteria`** — the overall outcome the whole slice must deliver, and the conditions that prove the *feature* is done. Defined at slice creation. The slice is signed off only once all of its knots are signed off (or fast-forwarded) and its slice-level success criteria are verified.
+- **Per-knot `goals` + `success_criteria`** — what *this stage* must achieve, and the conditions that prove *this knot* is done. Defined when the knot is started (`knot:start`). Each criterion is verified individually with evidence before the knot can be signed off.
+
+## Knots are persistent records
+
+A knot is **not** transient state that gets erased on completion — it is a durable record that accumulates, for the life of the slice:
+
+- **goals** — what the knot set out to achieve
+- **success_criteria** — each verified individually, each carrying its own **evidence** and a `met_at` timestamp
+- **plan** — an optional linked plan file and its status (`linked` / `complete`)
+- **resources** — docs, files, URLs, reports, memory/knowledge references attached to the knot
+- **sign-off summary** — the `signed_off_message` plus a `validation_evidence_summary` recorded at sign-off
+
+When a knot is signed off, its criteria, evidence, plan, and resources are preserved. Nothing is wiped. This history is queryable for later knots and for slice sign-off.
+
+## Lifecycle commands
+
+- **`/project:new:slice <request>`** — interactive funnel that captures the slice goal + success criteria, picks a strand, and creates the slice (replaces the old brainstorm entry point).
+- **`/project:knot:advance`** — sign off the active knot: verifies every per-knot success criterion has evidence, records the sign-off summary, and clears the active knot so the next one can start.
+- **`/project:slice:advance`** — finalize the slice: requires all knots signed off (or fast-forwarded), then signs off the slice and marks it complete.
+- **`/project:knot:fast_forward`** — the explicit, user-approved way to skip ahead: squash the knots between the current position and a later target into the target, recording a combined evidence summary. This is the only sanctioned way to skip a knot.
+
+## Knot Criteria Template
+
+**Define these BEFORE any implementation starts.** Record in the design doc or plan header.
+
+```
+**MVFoS**: [the slice being built — must be real and observable, no stubs]
+**Strand**: [e.g. quick | granular | <project-defined strand>]
+**Knot**: [the current knot name in that strand]
+
+**Done means**: [observable, verifiable condition — not "code is written"]
+**Must provide**: [required deliverables for this knot]
+**Must NOT provide**: [explicitly out of scope — prevents overbuilding]
+**Nice to have**: [optional extras only if time allows]
+**Validation**: [specific commands or steps that prove the per-knot success criteria]
+```
+
+## Per-knot quality bar (granular as the worked example)
+
+The guidance below describes the *quality intent* of each stage. It is written against the **granular** strand's knots because they are the most fine-grained, but it applies to whichever strand is in play — map your strand's knots onto the nearest stage (e.g. on **quick**: Prototype ≈ Proof-of-Work, Realization ≈ Alpha/Beta, Finalization ≈ RC/Release).
 
 | Knot | Focus | Done When |
 |------|-------|-----------|
-| **PoW** | Quick experiment: prove the approach, establish design/API/patterns/layout for later knots | Approach validated, decisions made, limitations known, code is throwaway |
+| **Proof-of-Work** | Quick experiment: prove the approach, establish design/API/patterns/layout for later knots | Approach validated, decisions made, limitations known, code is throwaway |
 | **Alpha** | First real, integrated implementation | Works end-to-end, TDD, basic error handling, integrated with system |
 | **Beta** | Ready to show someone else | Good UX, comprehensive error handling, docs started |
 | **Gamma** | Could be used in testing/staging | All core features + UI/UX, performance acceptable |
@@ -23,35 +80,20 @@ Every feature or slice advances through knots in order. Knots are not skipped wi
 | **RC2** | Ready for early adopters | Security reviewed, backward compat documented |
 | **Release** | Production confident | Monitoring in place, rollback plan ready |
 
-## Knot Criteria Template
+### Proof-of-Work knot rules
 
-**Define these BEFORE any implementation starts.** Record in design doc or plan header.
-
-```
-**MVFoS**: [the slice being built — must be real and observable, no stubs]
-**Knot**: [PoW | Alpha | Beta | Gamma | RC1 | RC2 | Release]
-
-**Done means**: [observable, verifiable condition — not "code is written"]
-**Must provide**: [required deliverables for this knot]
-**Must NOT provide**: [explicitly out of scope — prevents overbuilding]
-**Nice to have**: [optional extras only if time allows]
-**Validation**: [specific commands or steps that prove done criteria]
-```
-
-## PoW Knot Rules
-
-PoW is an **experiment**, not a deliverable. Its twin goals are:
+The first knot of a strand (Proof-of-Work on granular, Prototype on quick) is an **experiment**, not a deliverable. Its twin goals are:
 1. **Prove** the approach works (or definitively doesn't)
 2. **Establish** the approach, patterns, design, API shape, data layout, and architecture decisions that the Alpha knot will build on
 
-The output of PoW is a **decision and a direction** — not production code.
+The output of this first knot is a **decision and a direction** — not production code.
 
 - TDD is **relaxed** — manual/minimal validation acceptable
-- PoW code is **explicitly throwaway** — Alpha starts fresh or with deliberate, reviewed extraction
+- The code is **explicitly throwaway** — the next knot starts fresh or with deliberate, reviewed extraction
 - No production error handling, polish, or documentation required
-- Done = "we know our approach, its trade-offs, and the shape of what Alpha will build"
-- **Shipping PoW as Alpha = violation.** PoW → Alpha requires a conscious restart.
-- The PoW must produce documented decisions (what approach we chose and why) so Alpha implementers have clear direction
+- Done = "we know our approach, its trade-offs, and the shape of what the next knot will build"
+- **Shipping the proof-of-work as the next knot = violation.** It requires a conscious restart.
+- It must produce documented decisions (what approach we chose and why) so the next knot's implementers have clear direction
 
 ## MVFoS Selection
 
@@ -99,9 +141,11 @@ build + dry-run on fw02 → user review / live testing → install as service
 4. Document install steps and configuration in CHANGELOG.md
 5. Verify service is running and behaving correctly
 
-## Quality Bar by Knot
+## Quality Bar by Knot (granular as the worked example)
 
-| Area | PoW | Alpha | Beta | Gamma+ |
+Columns use the granular knots; map your strand's knots onto the nearest column.
+
+| Area | Proof-of-Work | Alpha | Beta | Gamma+ |
 |------|-----|-------|------|--------|
 | Tests | Manual/minimal | TDD: unit + integration | Comprehensive | Full suite + edge cases |
 | Error handling | None required | Meaningful errors, no panics | User-facing messages | Graceful degradation |
@@ -112,9 +156,13 @@ build + dry-run on fw02 → user review / live testing → install as service
 
 ## Knot Advancement Checklist
 
-Before advancing from one knot to the next:
-- [ ] All done criteria for current knot verified with evidence
+Before advancing from one knot to the next (`/project:knot:advance`):
+- [ ] Every per-knot `success_criteria` entry verified individually, each with recorded evidence
 - [ ] Evidence presented to user
-- [ ] User explicitly signs off on this knot
+- [ ] User explicitly signs off on this knot (sign-off summary recorded on the knot record)
 - [ ] CHANGELOG.md updated with knot completion
 - [ ] Plan/design doc updated to reflect advancement
+
+To finalize the whole slice (`/project:slice:advance`): all knots signed off (or fast-forwarded via `/project:knot:fast_forward`), slice-level `success_criteria` verified, and the user signs off the slice.
+
+> To skip ahead, never silently leave knots behind — use `/project:knot:fast_forward` so the squashed knots are recorded with a combined evidence summary.

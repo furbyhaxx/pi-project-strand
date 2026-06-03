@@ -24,4 +24,12 @@ describe("buildProjectStrandBootstrap", () => {
     const text = buildProjectStrandBootstrap();
     expect(text).toContain("high-level planned features/capabilities");
   });
+
+  test("bootstrap explains configurable strands and persistent knots", () => {
+    const text = buildProjectStrandBootstrap();
+    expect(text).toContain("strand");
+    expect(text).toContain("Strands are named knot sequences");
+    expect(text).toContain("/project:new:slice");
+    expect(text).not.toContain("/project:brainstorm");
+  });
 });
