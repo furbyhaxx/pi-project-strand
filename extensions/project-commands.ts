@@ -4,7 +4,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 const REQUIRED_PROJECT_FILES = ["PROJECT.md", "VISION.md", "ARCHITECTURE.md", "AGENTS.md"] as const;
 
-type ProjectCommand = "onboard" | "brainstorm" | "build" | "change";
+type ProjectCommand = "onboard" | "new:slice" | "new:strand" | "build" | "change";
 
 export interface ProjectAudit {
   cwd: string;
@@ -95,25 +95,44 @@ Requirements:
 4. Read pi-project-strand/references/required-project-files.md before drafting file contents.
 5. PROJECT.md must include a high-level Planned Features / Capabilities section. Capture what the user ultimately wants the project to include, not just what exists now.
 6. If files are missing, interview the user and create them one at a time. Confirm each before moving on.
-7. Initialize or update project_tracker slices/knots only after understanding the project and its planned capability map.
+7. Initialize project_tracker only after understanding the project and its planned capability map. Each slice carries its own named strand (a persistent sequence of knots); do not create slices here — point the user to /project:new:slice to specify the first slice and pick its strand.
 8. Seed project_knowledge with decisions, rejected approaches, constraints, warnings, conventions, and howtos learned during onboarding.
-9. End with a concise summary: created files, initialized state, captured knowledge, planned capability map, suggested next slice.
+9. End with a concise summary: created files, initialized state, captured knowledge, planned capability map, and tell the user to run /project:new:slice for the first feature.
 
 Do not dump all questions at once. Do not ask the user to implement anything.`;
   }
 
-  if (command === "brainstorm") {
+  if (command === "new:slice") {
     return `${header}
 
-Start a pi-project-strand brainstorming workflow for the requested topic.
+Run the pi-project-strand new-slice funnel: an interactive, LLM-driven workflow that turns a feature request into a fully-specified, tracked slice.
 
 Requirements:
-1. Load /skill:brainstorming before proceeding.
-2. Check PROJECT.md Planned Features / Capabilities, project_tracker status, and project_knowledge context before asking design questions.
-3. Surface relevant existing planned capabilities, decisions, constraints, and rejected approaches at the start.
-4. If no topic was provided, ask the user what change/feature/decision to brainstorm.
-5. Follow the brainstorming skill completely: design approval before plan, spec review before implementation.
-6. Persist new decisions and constraints into project_knowledge as they emerge.`;
+1. Load /skill:brainstorming and follow it. Surface PROJECT.md Planned Features / Capabilities, project_tracker status, and relevant project_knowledge (decisions, constraints, rejected approaches) BEFORE asking design questions.
+2. Ask focused questions one at a time to establish purpose, scope, constraints, and complexity. Research (web/local) where it changes the decision; persist findings as project_knowledge entries and attach them as slice resources.
+3. Converge with the user on the slice GOAL and slice-level SUCCESS CRITERIA ("what done means").
+4. Strand selection: call ask_user_question with one single-select question. Offer each strand defined in .pi/project.jsonc (or the built-in quick/granular) as an option — each option's description states when to use it (pros/cons), and its preview shows the knot sequence with focus. Assess complexity and mark your recommended strand first with "(Recommended)".
+5. Create the slice: project_tracker action=slice:create with id, name, description, type, the chosen strand name, goal, and criteria (the slice-level success criteria). The slice is created status=defined with the full knot sequence pending.
+6. Do NOT start a knot here. End with a summary (goal, success criteria, chosen strand + why) and tell the user to run /project:build to activate the slice and start its first knot.
+
+Do not dump all questions at once. Do not ask the user to implement anything. Respect the design-approval gate before any implementation work.`;
+  }
+
+  if (command === "new:strand") {
+    return `${header}
+
+Run the pi-project-strand new-strand authoring workflow: an interactive, LLM-driven process that designs a custom strand (a reusable, ordered knot sequence) and writes it into .pi/project.jsonc under "strands".
+
+A strand is a SEED-ONLY template. It is snapshotted into a slice when that slice is created via /project:new:slice. Editing or deleting it later never affects existing slices.
+
+Requirements:
+1. Load context first: read .pi/project.jsonc (note the strands already defined), PROJECT.md Planned Features / Capabilities, and relevant project_knowledge. Understand the kind of work this strand is for before proposing anything.
+2. Clarify the use case ONE question at a time (optionally via ask_user_question): what kind of work the strand targets, and the intended granularity (few coarse knots vs. many fine-grained gates). Contrast with the built-in quick/granular strands so the user picks a distinct, useful shape.
+3. Propose an ordered knot sequence: for each knot give a short name and a one-line focus (what that knot is about / its quality bar). Present the full sequence and CONFIRM with the user before writing. Refine until the user approves.
+4. Write it: call project_strand action=define name=<strand-name> description=<when-to-use> knots=[{name, focus}, ...]. The tool validates (unique name, >=1 knot, unique knot names, every knot has a focus) and returns an in-band error if invalid — fix and retry, do not fabricate.
+5. On success, tell the user the strand is now available to /project:new:slice and summarize the knot sequence.
+
+Do not dump all questions at once. Do not start any implementation work.`;
   }
 
   if (command === "build") {
@@ -125,10 +144,11 @@ Requirements:
 1. Read project_tracker status, next action, active slice, active knot, criteria, and linked plan status.
 2. Read PROJECT.md Planned Features / Capabilities and relevant project_knowledge entries for the active slice and current files.
 3. Route based on state:
-   - Active slice + linked plan: resume with /skill:executing-plans or /skill:subagent-driven-development.
-   - Active slice + knot criteria but no plan: use /skill:writing-plans first.
-   - No active knot: use /skill:frs-strategy to start the next knot and define criteria.
-   - No active slice: show defined slices and ask which to activate.
+   - Active slice with an active knot + linked plan: resume with /skill:executing-plans or /skill:subagent-driven-development.
+   - Active slice with an active knot but no plan: use /skill:writing-plans first.
+   - Active slice, no active knot, pending knots remain: use /skill:frs-strategy to knot:start the next pending knot (define its goals + success_criteria).
+   - Active slice, all knots signed off: prompt the user for final /project:slice:advance sign-off.
+   - Defined slice: ask the user to activate it (slice:activate), or run /project:new:slice for a new feature.
    - No project files/tracker state: run /project:onboard first.
 4. Explain the routing briefly, then proceed with the appropriate skill.
 5. Keep user gates: design approval, spec review, knot sign-off, deployment approval.`;
@@ -139,10 +159,10 @@ Requirements:
 Run a pi-project-strand project change workflow.
 
 Requirements:
-1. Identify what is changing: PROJECT.md (including Planned Features / Capabilities), VISION.md, ARCHITECTURE.md, AGENTS.md, project_tracker slices/knots/criteria, project_knowledge, or implementation plans.
+1. Identify what is changing: PROJECT.md (including Planned Features / Capabilities), VISION.md, ARCHITECTURE.md, AGENTS.md, project_tracker slices (each with its own named strand of persistent knots) and their goals/success criteria, project_knowledge, or implementation plans. A wholly new feature is usually a new slice — route that to /project:new:slice rather than editing here.
 2. Ask focused clarification if the requested change is ambiguous.
-3. Assess impact before editing: active knot criteria, architecture consistency, superseded knowledge, dependent slices.
-4. For planned-feature changes, update PROJECT.md and consider whether project_tracker slices must be created, held, completed, or reprioritized.
+3. Assess impact before editing: active knot goals/success_criteria, architecture consistency, superseded knowledge, dependent slices.
+4. For planned-feature changes, update PROJECT.md and consider whether a new slice should be created via /project:new:slice, or whether existing slices must be held, advanced, or reprioritized.
 5. For architecture changes, dual-write: update the relevant doc and add/update a project_knowledge decision entry with rationale.
 6. For rejected paths, use project_knowledge category rejected and link/supersede related decisions when appropriate.
 7. Verify docs/tracker/knowledge consistency after the change.
@@ -169,11 +189,19 @@ export default function projectCommandsExtension(pi: ExtensionAPI) {
     },
   });
 
-  pi.registerCommand("project:brainstorm", {
-    description: "Start an LLM-driven brainstorming workflow for a feature, change, or decision",
+  pi.registerCommand("project:new:slice", {
+    description: "Interactive funnel: turn a feature request into a fully-specified, tracked slice with a chosen strand",
     handler: async (args, ctx) => {
       const audit = await auditProject(ctx.cwd);
-      sendProjectCommand(pi, ctx, buildProjectCommandMessage("brainstorm", args, audit));
+      sendProjectCommand(pi, ctx, buildProjectCommandMessage("new:slice", args, audit));
+    },
+  });
+
+  pi.registerCommand("project:new:strand", {
+    description: "Interactively design a custom strand (knot sequence) and add it to project.jsonc",
+    handler: async (args, ctx) => {
+      const audit = await auditProject(ctx.cwd);
+      sendProjectCommand(pi, ctx, buildProjectCommandMessage("new:strand", args, audit));
     },
   });
 

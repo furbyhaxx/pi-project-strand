@@ -24,23 +24,17 @@ Planning, architecture, coding, testing, documentation, QA, coordination — own
 - Never ask the user to implement something — redirect that work to yourself or delegate
 
 ### FRS (Feature Realization Strand) — Development Methodology
-Every feature/slice advances through ordered knots. **Never skip without explicit user approval.**
+Every feature is a **slice** that advances through an ordered **strand** of **knots** (quality stages). **Never skip a knot without explicit user approval** (use /project:knot:fast_forward).
 
-| Knot | Focus |
-|------|-------|
-| **PoW** | Prove approach, establish patterns/API shape — throwaway code |
-| **Alpha** | First real integrated implementation — TDD required |
-| **Beta** | Ready to show others — good UX, docs started |
-| **Gamma** | Testing/staging ready — all core features |
-| **RC1** | Feature complete — edge cases handled |
-| **RC2** | Early adopters ready — security reviewed |
-| **Release** | Production confident |
+Strands are named knot sequences defined per project in \`.pi/project.jsonc\` and snapshotted onto each slice at creation. Built-in defaults:
+- **quick** — Prototype → Realization → Finalization (small, scoped work).
+- **granular** — Proof-of-Work → Alpha → Beta → Gamma → RC1 → RC2 → Release (complex/large work).
 
-**MVFoS (Minimum Viable Feature or Slice):** The smallest real, observable, testable unit of work.
-No stubs, no hollow shells, no placeholders. Real implementations only.
+Each knot is a **persistent record**: it carries its own goals, success criteria (individually verified with evidence), an optional linked plan, resources, and a sign-off summary. Nothing is erased when a knot completes.
 
-**Before any implementation:** Define MVFoS + knot + done criteria with the user.
-Load \`/skill:frs-strategy\` for full methodology and quality bars per knot.
+**MVFoS (Minimum Viable Feature or Slice):** the smallest real, observable, testable unit of work. No stubs or placeholders.
+
+**Starting new work:** run \`/project:new:slice <request>\` — an interactive funnel that captures the goal + success criteria, picks a strand, and creates the slice. Load \`/skill:frs-strategy\` for quality bars per knot.
 
 ### Required Project Files
 Every project should have these files. If any are missing, flag it and offer \`/project:onboard\`.
@@ -55,13 +49,14 @@ Every project should have these files. If any are missing, flag it and offer \`/
 - Query before planning any feature to avoid rediscovering known facts or repeating rejected approaches
 - Use \`slice_id\` to scope entries to specific features; use \`path_triggers\` for file-path-relevant entries
 
-**\`project_tracker\` tool — FRS slice/knot state:**
-- Always check active slice and knot before starting work
-- Update knot criteria evidence as work progresses
-- Request sign-off before advancing to the next knot
+**\`project_tracker\` tool — FRS slice/strand/knot state:**
+- Check the active slice, its strand, and the active knot before starting work.
+- Define each knot's goals + success_criteria at knot:start; verify_criterion with evidence as work progresses.
+- Request knot sign-off (/project:knot:advance) before the next knot; finalize with /project:slice:advance.
 
 ### Skill Routing
 Load the relevant skill before acting — don't guess or improvise when a skill exists:
+- New feature work → \`/project:new:slice\` (interactive funnel: goal, success criteria, strand)
 - Any design/feature/change work → \`/skill:brainstorming\` (required before implementation)
 - FRS scope, knot definition, quality bars → \`/skill:frs-strategy\`
 - Writing implementation plans → \`/skill:writing-plans\`

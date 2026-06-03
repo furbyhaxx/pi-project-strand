@@ -28,7 +28,8 @@ describe("project command registration", () => {
 
     expect(names).toEqual([
       "project:onboard",
-      "project:brainstorm",
+      "project:new:slice",
+      "project:new:strand",
       "project:build",
       "project:implement",
       "project:change",
@@ -54,18 +55,26 @@ describe("project command message builders", () => {
     expect(text).toContain("Do not dump all questions at once");
   });
 
-  test("brainstorm command loads the brainstorming skill", () => {
-    const text = buildProjectCommandMessage("brainstorm", "add auth", audit);
-    expect(text).toContain("/project:brainstorm");
-    expect(text).toContain("User arguments: add auth");
-    expect(text).toContain("Load /skill:brainstorming");
+  test("new:slice message drives the funnel and ends by creating a defined slice", () => {
+    const msg = buildProjectCommandMessage("new:slice", "DNS caching", undefined);
+    expect(msg).toContain('name="/project:new:slice"');
+    expect(msg).toContain("/skill:brainstorming");
+    expect(msg).toContain("ask_user_question");
+    expect(msg).toContain("strand");
+    expect(msg).toContain("slice:create");
+    expect(msg).toContain("defined");
+  });
+
+  test("brainstorm is no longer a supported command type", () => {
+    // @ts-expect-error brainstorm removed from ProjectCommand union
+    expect(() => buildProjectCommandMessage("brainstorm", "", undefined)).not.toThrow();
   });
 
   test("build command routes by project_tracker state", () => {
     const text = buildProjectCommandMessage("build", "", audit);
     expect(text).toContain("/project:build");
     expect(text).toContain("Read project_tracker status");
-    expect(text).toContain("Active slice + linked plan");
+    expect(text).toContain("Active slice with an active knot + linked plan");
   });
 
   test("change command enforces dual-write architecture updates", () => {

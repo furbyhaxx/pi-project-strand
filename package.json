@@ -1,6 +1,6 @@
 {
   "name": "pi-project-strand",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Persistent project-scoped FRS/MVFoS tracking and workflow skills for pi",
   "keywords": [
     "pi-package"
@@ -42,6 +42,7 @@
       "extensions/ask-user-question.ts",
       "extensions/plan-tracker.ts",
       "extensions/project-tracker.ts",
+      "extensions/project-strand.ts",
       "extensions/project-knowledge.ts",
       "extensions/project-commands.ts",
       "extensions/superpowers-bootstrap.ts"
