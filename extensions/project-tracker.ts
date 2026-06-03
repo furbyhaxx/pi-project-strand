@@ -35,6 +35,8 @@ import {
   handleVerifyCriterion,
   handleSliceAnnotate,
   handleKnotAnnotate,
+  handleInitFastForward,
+  handleCompleteFastForward,
   normalizeState,
 } from "./project-tracker-core.js";
 
@@ -75,6 +77,7 @@ const ProjectTrackerParams = Type.Object({
       "milestone:add",
       "slice:annotate",
       "knot:annotate",
+      "knot:complete_fast_forward",
     ] as const,
     { description: "Project tracker action" }
   ),
@@ -231,27 +234,54 @@ async function promptForEvidence(ctx: ExtensionCommandContext, sliceId: string, 
   return ctx.ui.editor(`Evidence summary for ${sliceId} ${knot}`, "Validated criteria and sign-off basis:\n");
 }
 
-export async function getActiveSliceId(cwd: string): Promise<string | undefined> {
-  const { state } = await loadState(cwd);
-  return state.slices.find((s) => s.status === "active")?.id;
-}
-
-export async function buildProjectStrandContext(cwd: string): Promise<string | undefined> {
-  const { runtime } = await loadState(cwd);
+export async function buildProjectStrandContext(cwd: string): Promise<{ text: string; activeSliceId?: string } | undefined> {
+  const { state, runtime } = await loadState(cwd);
   if (!(await exists(runtime.statePath)) && !(await exists(runtime.configPath))) return undefined;
-  const { state } = await loadState(cwd);
+
   const knotSequence = runtime.knots.join(" → ");
   const active = state.slices.filter((slice) => slice.status === "active");
+  const activeSliceId = active[0]?.id;
   const activeSummary = active.length > 0
-    ? active.map((slice) => `${slice.id} → ${slice.current_knot ?? "no knot"} (${slice.active_knot ? slice.active_knot.criteria.filter((criterion) => criterion.verified).length : 0}/${slice.active_knot?.criteria.length ?? 0} criteria)`).join(" · ")
+    ? active.map((slice) => `${slice.id} → ${slice.current_knot ?? "no knot"} (${slice.active_knot ? slice.active_knot.criteria.filter((c) => c.verified).length : 0}/${slice.active_knot?.criteria.length ?? 0} criteria)`).join(" · ")
     : "none";
 
-  return [
-    `[pi-project-strand] ${state.project.name}`,
-    `Knot sequence: ${knotSequence}`,
-    `Active: ${activeSummary}`,
-    `Next up: ${computeNext(state)}`,
-  ].join("\n");
+  const parts: string[] = [
+    [
+      `[pi-project-strand] ${state.project.name}`,
+      `Knot sequence: ${knotSequence}`,
+      `Active: ${activeSummary}`,
+      `Next up: ${computeNext(state)}`,
+    ].join("\n"),
+  ];
+
+  for (const slice of active.filter((s) => s.pending_fast_forward)) {
+    const pff = slice.pending_fast_forward!;
+    const squashed = [pff.from_knot, ...pff.squashed_knots];
+    const knotFocusLines = squashed
+      .map((name) => {
+        const focus = (runtime.config.knots ?? []).find((k) => k.name === name)?.focus;
+        return focus ? `  - ${name}: ${focus}` : `  - ${name}`;
+      })
+      .join("\n");
+    parts.push(
+      [
+        `⚡ FAST-FORWARD PENDING — ${slice.id}`,
+        `From: ${pff.from_knot} → Target: ${pff.target_knot}  |  Squashing: ${squashed.join(", ")}`,
+        `User instructions: "${pff.user_instructions}"`,
+        ``,
+        `Squashed knot focus areas:`,
+        knotFocusLines,
+        ``,
+        `REQUIRED BEFORE ACTING:`,
+        `1. Load /skill:frs-strategy to get quality bars for each squashed knot.`,
+        `2. Synthesize a single action plan covering every squashed knot's focus + quality bars + user instructions.`,
+        `3. Present the plan to the user for approval — do NOT start work before approval.`,
+        `4. Execute the approved plan. When done, call project_tracker action=knot:complete_fast_forward slice_id=${slice.id} evidence=<summary>.`,
+      ].join("\n")
+    );
+  }
+
+  return { text: parts.join("\n\n"), activeSliceId };
 }
 
 export default function (pi: ExtensionAPI) {
@@ -365,6 +395,12 @@ export default function (pi: ExtensionAPI) {
           );
           break;
         }
+        case "knot:complete_fast_forward": {
+          result = await mutateState(ctx.cwd, (state) =>
+            handleCompleteFastForward(state, params.slice_id ?? "", params.evidence ?? "")
+          );
+          break;
+        }
         default: {
           const { state } = await loadState(ctx.cwd);
           result = { text: `Error: unknown action ${params.action}`, state, error: "unknown action" };
@@ -474,6 +510,101 @@ export default function (pi: ExtensionAPI) {
       );
       await updateWidget(ctx);
       await showText(ctx, "Knot advanced", result.text);
+    },
+  });
+
+  pi.registerCommand("project:knot:fast_forward", {
+    description: "Initiate a fast-forward: squash knots into a single agent-executed plan",
+    handler: async (args, ctx) => {
+      const sliceId = args.trim();
+      if (!sliceId) {
+        ctx.ui.notify("Usage: /project:knot:fast_forward <slice-id>", "warning");
+        return;
+      }
+
+      const { state, runtime } = await loadState(ctx.cwd);
+      const slice = state.slices.find((s) => s.id === sliceId);
+      if (!slice) {
+        ctx.ui.notify(`Unknown slice: ${sliceId}`, "warning");
+        return;
+      }
+      if (slice.status !== "active") {
+        ctx.ui.notify(`Slice ${sliceId} is not active`, "warning");
+        return;
+      }
+      if (!slice.current_knot) {
+        ctx.ui.notify(`Slice ${sliceId} has no current knot`, "warning");
+        return;
+      }
+      if (slice.pending_fast_forward) {
+        ctx.ui.notify(`Slice ${sliceId} already has a pending fast-forward (${slice.pending_fast_forward.from_knot} → ${slice.pending_fast_forward.target_knot})`, "warning");
+        return;
+      }
+
+      const currentIndex = runtime.knots.indexOf(slice.current_knot);
+      if (currentIndex === -1 || currentIndex >= runtime.knots.length - 1) {
+        ctx.ui.notify(`Slice ${sliceId} is already at the final knot (${slice.current_knot})`, "warning");
+        return;
+      }
+
+      const availableTargets = runtime.knots.slice(currentIndex + 1);
+      const focusMap = Object.fromEntries(
+        (runtime.config.knots ?? []).map((k) => [k.name, k.focus ?? ""])
+      );
+      const targetLines = availableTargets
+        .map((name) => `  ${name}${focusMap[name] ? ` — ${focusMap[name]}` : ""}`)
+        .join("\n");
+
+      const template = [
+        `Fast-forward: ${sliceId} (currently at: ${slice.current_knot})`,
+        ``,
+        `Available target knots:`,
+        targetLines,
+        ``,
+        `Target knot: `,
+        ``,
+        `Instructions — describe what must be accomplished for this fast-forward to succeed.`,
+        `The agent will synthesize a full action plan from these instructions combined with`,
+        `the quality bars of every knot being squashed, then present it for your approval.`,
+        ``,
+      ].join("\n");
+
+      const filled = await ctx.ui.editor(`Fast-forward ${sliceId}`, template);
+      if (!filled?.trim()) {
+        ctx.ui.notify("Fast-forward cancelled", "info");
+        return;
+      }
+
+      const targetMatch = filled.match(/^Target knot:\s*(.+)$/m);
+      const targetKnot = targetMatch?.[1]?.trim();
+      if (!targetKnot || !runtime.knots.includes(targetKnot)) {
+        ctx.ui.notify(
+          `Invalid target knot: "${targetKnot ?? ""}". Must be one of: ${availableTargets.join(", ")}`,
+          "error"
+        );
+        return;
+      }
+
+      const instructionsSectionStart = filled.indexOf("Instructions —");
+      const instructions =
+        instructionsSectionStart === -1
+          ? ""
+          : filled
+              .slice(instructionsSectionStart)
+              .split("\n")
+              .slice(4) // skip header line + 3 boilerplate description lines
+              .join("\n")
+              .trim();
+      if (!instructions) {
+        ctx.ui.notify("Instructions are required — describe what the agent must accomplish.", "warning");
+        return;
+      }
+
+      const result = await mutateState(ctx.cwd, (freshState) =>
+        handleInitFastForward(freshState, sliceId, targetKnot, instructions, runtime.knots)
+      );
+      await updateWidget(ctx);
+      await showText(ctx, "Fast-forward initiated", result.text);
     },
   });
 }

@@ -22,12 +22,25 @@ export interface ActiveKnot {
   notes?: string;   // design notes, decisions, howtos specific to this knot's work
 }
 
+export interface PendingFastForward {
+  from_knot: string;
+  target_knot: string;
+  squashed_knots: string[];   // knots between from and target (exclusive of both)
+  user_instructions: string;
+  initiated_at: string;
+}
+
 export interface KnotRecord {
   knot: string;
   started_at: string;
   completed_at: string;
   evidence_summary: string;
   signed_off: true;
+  fast_forward?: {
+    from_knot: string;
+    squashed_knots: string[];
+    user_instructions: string;
+  };
 }
 
 export interface Slice {
@@ -43,6 +56,7 @@ export interface Slice {
   active_plan_status: PlanStatus | null;
   knot_history: KnotRecord[];
   notes?: string;   // persistent design notes, key decisions, architecture details for this slice
+  pending_fast_forward?: PendingFastForward;
 }
 
 export interface Milestone {
@@ -218,6 +232,16 @@ export function formatSliceDetail(slice: Slice): string {
     lines.push(slice.notes);
   }
 
+  if (slice.pending_fast_forward) {
+    const pff = slice.pending_fast_forward;
+    const squashed = [pff.from_knot, ...pff.squashed_knots];
+    lines.push("");
+    lines.push(`⚡ Pending fast-forward: ${pff.from_knot} → ${pff.target_knot}`);
+    if (pff.squashed_knots.length > 0) lines.push(`  Squashing: ${squashed.join(", ")}`);
+    lines.push(`  Instructions: ${pff.user_instructions}`);
+    lines.push(`  Initiated: ${pff.initiated_at}`);
+  }
+
   if (slice.active_knot) {
     lines.push("");
     lines.push(`Active knot: ${slice.active_knot.knot} (${criteriaProgress(slice.active_knot)} verified)`);
@@ -262,6 +286,15 @@ export function formatCriteria(slice: Slice): string {
 }
 
 export function computeNext(state: ProjectState): string {
+  const pendingFastForward = state.slices
+    .filter((s) => s.status === "active" && s.pending_fast_forward)
+    .sort(compareSlices);
+  if (pendingFastForward.length > 0) {
+    const slice = pendingFastForward[0]!;
+    const pff = slice.pending_fast_forward!;
+    return `Execute fast-forward plan for ${slice.id}: ${pff.from_knot} → ${pff.target_knot}`;
+  }
+
   const activeWithUnverified = state.slices
     .filter((slice) => slice.status === "active" && slice.active_knot && slice.active_knot.criteria.some((criterion) => !criterion.verified))
     .sort(compareSlices);
@@ -509,6 +542,84 @@ export function handleMilestoneAdd(state: ProjectState, input: MilestoneInput): 
 /** Returns IDs of all currently active slices. */
 export function getActiveSliceIds(state: ProjectState): string[] {
   return state.slices.filter((s) => s.status === "active").map((s) => s.id);
+}
+
+export function handleInitFastForward(
+  state: ProjectState,
+  sliceId: string,
+  targetKnot: string,
+  userInstructions: string,
+  knotSequence: string[]
+): ActionResult {
+  const current = cloneState(state);
+  const slice = findSlice(current, sliceId);
+  if (!slice) return { text: `Error: unknown slice ${sliceId}`, state, error: "unknown slice" };
+  if (slice.status !== "active") return { text: `Error: slice ${sliceId} is not active`, state, error: "not active" };
+  if (!slice.current_knot) return { text: `Error: slice ${sliceId} has no current knot`, state, error: "no current knot" };
+  if (!userInstructions.trim()) return { text: "Error: instructions are required", state, error: "missing instructions" };
+
+  const fromIndex = knotSequence.indexOf(slice.current_knot);
+  const targetIndex = knotSequence.indexOf(targetKnot);
+  if (fromIndex === -1) return { text: `Error: current knot "${slice.current_knot}" not in sequence`, state, error: "invalid knot" };
+  if (targetIndex === -1) return { text: `Error: target knot "${targetKnot}" not in sequence`, state, error: "invalid target knot" };
+  if (targetIndex <= fromIndex) return { text: `Error: target knot must come after current knot "${slice.current_knot}"`, state, error: "invalid target" };
+
+  const squashedKnots = knotSequence.slice(fromIndex + 1, targetIndex);
+  slice.pending_fast_forward = {
+    from_knot: slice.current_knot,
+    target_knot: targetKnot,
+    squashed_knots: squashedKnots,
+    user_instructions: userInstructions.trim(),
+    initiated_at: isoNow(),
+  };
+
+  const squashDesc = squashedKnots.length > 0
+    ? `, squashing ${[slice.current_knot, ...squashedKnots].join(", ")}`
+    : ` from ${slice.current_knot}`;
+  return {
+    text: `Fast-forward initiated: ${sliceId} → ${targetKnot}${squashDesc}.\nAgent will synthesize an action plan for approval on next turn.`,
+    state: touch(normalizeState(current)),
+  };
+}
+
+export function handleCompleteFastForward(
+  state: ProjectState,
+  sliceId: string,
+  evidenceSummary: string
+): ActionResult {
+  const current = cloneState(state);
+  const slice = findSlice(current, sliceId);
+  if (!slice) return { text: `Error: unknown slice ${sliceId}`, state, error: "unknown slice" };
+  if (!slice.pending_fast_forward) return { text: `Error: slice ${sliceId} has no pending fast-forward`, state, error: "no pending fast-forward" };
+  if (!evidenceSummary.trim()) return { text: "Error: evidence summary is required", state, error: "missing evidence" };
+
+  const pff = slice.pending_fast_forward;
+  const now = isoNow();
+
+  slice.knot_history.push({
+    knot: `fast-forward:${pff.from_knot}→${pff.target_knot}`,
+    started_at: pff.initiated_at,
+    completed_at: now,
+    evidence_summary: evidenceSummary.trim(),
+    signed_off: true,
+    fast_forward: {
+      from_knot: pff.from_knot,
+      squashed_knots: pff.squashed_knots,
+      user_instructions: pff.user_instructions,
+    },
+  });
+
+  slice.active_knot = null;
+  slice.active_plan = null;
+  slice.active_plan_status = null;
+  slice.current_knot = pff.target_knot;
+  slice.pending_fast_forward = undefined;
+
+  const squashed = [pff.from_knot, ...pff.squashed_knots];
+  return {
+    text: `Fast-forward complete: ${sliceId} landed at ${pff.target_knot}.\nSquashed: ${squashed.join(", ")}.\nReady to start ${pff.target_knot} knot with knot:start.`,
+    state: touch(normalizeState(current)),
+  };
 }
 
 export function advanceKnotForSignoff(

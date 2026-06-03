@@ -74,8 +74,8 @@ Load the relevant skill before acting — don't guess or improvise when a skill 
 ### Operational Rules
 - Use pi-project-strand workflows before acting. User instructions override project-strand guidance.
 - If even a 1% chance a skill applies, load it before any response or action.
-- Prefer pi-native tools: AskUserQuestion, plan_tracker, project_tracker, project_knowledge.
-- Use configured teammates via \`delegate\` (planner, reviewer, scout, worker) — not generic assumptions.
+- Prefer pi-native tools: ask_user_question, plan_tracker, project_tracker, project_knowledge.
+- If pi-teammates is installed, use \`delegate\` (planner, reviewer, scout, worker) for parallel/subagent work.
 `.trim();
 }
 
