@@ -7,95 +7,108 @@ import { mkdir, readFile, rename, writeFile, access } from "node:fs/promises";
 import { parse } from "jsonc-parser";
 import { Type, type Static } from "typebox";
 import {
+  DEFAULT_STRANDS,
   type ProjectConfig,
   type ProjectState,
   type ProjectTrackerDetails,
   type SliceStatus,
-  advanceKnotForSignoff,
-  computeNext,
+  type SliceType,
+  type StrandTemplate,
+  type Target,
+  type ResourceType,
   createInitialState,
-  formatCriteria,
-  formatProjectStatus,
-  formatSliceDetail,
-  formatSliceList,
-  handleKnotCriteria,
-  handleKnotRequestSignoff,
-  handleMilestoneAdd,
-  handleNext,
-  handlePlanComplete,
-  handlePlanLink,
-  handlePlanList,
-  handleSliceActivate,
-  handleSliceCreate,
-  handleSliceGet,
-  handleSliceHold,
-  handleSliceList,
-  handleStatus,
-  handleKnotStart,
-  handleVerifyCriterion,
-  handleSliceAnnotate,
-  handleKnotAnnotate,
-  handleInitFastForward,
-  handleCompleteFastForward,
   normalizeState,
+  computeNext,
+  formatProjectStatus,
+  formatSliceList,
+  handleStatus,
+  handleSliceList,
+  handleSliceGet,
+  handleNext,
+  handleSliceCreate,
+  handleSliceUpdate,
+  handleSliceActivate,
+  handleSliceHold,
+  handleSliceSignOff,
+  handleKnotStart,
+  handleKnotUpdate,
+  handleKnotSetPlan,
+  handleKnotSignOff,
+  handleKnotFastForward,
+  handleCompleteFastForward,
+  handleVerifyCriterion,
+  handleAnnotate,
+  handleResourceAdd,
+  handleResourceRemove,
+  handleMilestoneAdd,
 } from "./project-tracker-core.js";
 
-const DEFAULTS = {
-  stateFile: ".pi/project/state.json",
-  knots: [
-    { name: "PoW", focus: "Prove approach, establish design/API/patterns for later knots" },
-    { name: "Alpha", focus: "First real, integrated implementation" },
-    { name: "Beta", focus: "Ready to show someone else" },
-    { name: "Gamma", focus: "Staging-ready, all core features" },
-    { name: "RC1", focus: "Feature complete, polishing" },
-    { name: "RC2", focus: "Early-adopter ready" },
-    { name: "Release", focus: "Production confident" },
-  ],
-} as const;
+const DEFAULTS = { stateFile: ".pi/project/state.json" } as const;
 
-type ProjectStrandConfig = ProjectConfig & {
-  stateFile?: string;
-};
+type ProjectStrandConfig = ProjectConfig & { stateFile?: string };
 
-const ProjectTrackerParams = Type.Object({
-  action: StringEnum(
-    [
-      "status",
-      "slice:list",
-      "slice:get",
-      "knot:criteria",
-      "next",
-      "plan:list",
-      "slice:create",
-      "slice:activate",
-      "slice:hold",
-      "knot:start",
-      "knot:verify_criterion",
-      "knot:request_signoff",
-      "plan:link",
-      "plan:complete",
-      "milestone:add",
-      "slice:annotate",
-      "knot:annotate",
-      "knot:complete_fast_forward",
-    ] as const,
-    { description: "Project tracker action" }
-  ),
-  slice_id: Type.Optional(Type.String({ description: "Slice id" })),
-  id: Type.Optional(Type.String({ description: "New slice id" })),
-  name: Type.Optional(Type.String({ description: "Name for slice or milestone" })),
-  description: Type.Optional(Type.String({ description: "Description for slice or milestone" })),
-  type: Type.Optional(StringEnum(["vertical", "horizontal"] as const, { description: "Slice type" })),
-  priority: Type.Optional(Type.Integer({ description: "Slice priority" })),
-  status: Type.Optional(StringEnum(["defined", "active", "on_hold", "complete"] as const, { description: "Slice status filter" })),
-  knot: Type.Optional(Type.String({ description: "Knot name" })),
-  criteria: Type.Optional(Type.Array(Type.String(), { description: "Knot done criteria" })),
-  index: Type.Optional(Type.Integer({ minimum: 0, description: "Criterion index" })),
-  evidence: Type.Optional(Type.String({ description: "Verification evidence for a criterion" })),
-  file_path: Type.Optional(Type.String({ description: "Linked plan file path" })),
-  notes: Type.Optional(Type.String({ description: "Notes content for slice:annotate or knot:annotate" })),
-  notes_mode: Type.Optional(StringEnum(["set", "append"] as const, { description: "set (replace) or append to existing notes (default: set)" })),
-});
+const ResourceParam = Type.Object(
+  {
+    type: StringEnum(["doc", "url", "file", "report", "memory", "knowledge"] as const, { description: "Resource kind" }),
+    ref: Type.String({ description: "Path, URL, knowledge id, or memory slug" }),
+    title: Type.Optional(Type.String()),
+    note: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false }
+);
+
+const ProjectTrackerParams = Type.Object(
+  {
+    action: StringEnum(
+      [
+        "status",
+        "slice:list",
+        "slice:get",
+        "next",
+        "slice:create",
+        "slice:update",
+        "slice:activate",
+        "slice:hold",
+        "slice:sign_off",
+        "knot:start",
+        "knot:update",
+        "knot:set_plan",
+        "knot:sign_off",
+        "knot:fast_forward",
+        "knot:complete_fast_forward",
+        "verify_criterion",
+        "annotate",
+        "resource:add",
+        "resource:remove",
+        "milestone:add",
+      ] as const,
+      { description: "Project tracker action" }
+    ),
+    slice_id: Type.Optional(Type.String({ description: "Slice id" })),
+    id: Type.Optional(Type.String({ description: "New slice id (slice:create)" })),
+    name: Type.Optional(Type.String({ description: "Name for slice or milestone" })),
+    description: Type.Optional(Type.String({ description: "Description for slice or milestone" })),
+    type: Type.Optional(StringEnum(["vertical", "horizontal"] as const, { description: "Slice type" })),
+    priority: Type.Optional(Type.Integer({ description: "Slice priority" })),
+    status: Type.Optional(StringEnum(["defined", "active", "on_hold", "complete"] as const, { description: "Status filter (slice:list)" })),
+    strand: Type.Optional(Type.String({ description: "Strand name to seed (slice:create); must exist in project.jsonc strands" })),
+    goal: Type.Optional(Type.String({ description: "Slice goal (slice:create/update)" })),
+    criteria: Type.Optional(Type.Array(Type.String(), { description: "Success criteria text (slice:create seeds slice-level; knot:start seeds knot-level)" })),
+    goals: Type.Optional(Type.Array(Type.String(), { description: "Knot goals (knot:start/update)" })),
+    title: Type.Optional(Type.String({ description: "Knot title (knot:update)" })),
+    knot: Type.Optional(Type.String({ description: "Knot name (knot:start) or fast-forward target (knot:fast_forward)" })),
+    target: Type.Optional(StringEnum(["slice", "knot"] as const, { description: "Whether verify_criterion/annotate/resource targets the slice or its active knot" })),
+    index: Type.Optional(Type.Integer({ minimum: 0, description: "Criterion or resource index" })),
+    evidence: Type.Optional(Type.String({ description: "Verification/sign-off evidence" })),
+    message: Type.Optional(Type.String({ description: "Sign-off message (knot:sign_off, slice:sign_off)" })),
+    file_path: Type.Optional(Type.String({ description: "Plan file path (knot:set_plan)" })),
+    plan_status: Type.Optional(StringEnum(["linked", "complete"] as const, { description: "Plan status (knot:set_plan)" })),
+    notes: Type.Optional(Type.String({ description: "Notes (annotate) or fast-forward instructions (knot:fast_forward)" })),
+    notes_mode: Type.Optional(StringEnum(["set", "append"] as const, { description: "annotate: set (replace) or append" })),
+    resource: Type.Optional(ResourceParam),
+  },
+  { additionalProperties: false }
+);
 
 type ProjectTrackerInput = Static<typeof ProjectTrackerParams>;
 
@@ -119,7 +132,7 @@ async function findProjectRoot(startCwd: string): Promise<string> {
   }
 }
 
-async function loadProjectConfig(cwd: string): Promise<{ root: string; configPath: string; config: ProjectStrandConfig; knots: string[]; statePath: string }> {
+async function loadProjectConfig(cwd: string): Promise<{ root: string; configPath: string; config: ProjectStrandConfig; strands: Record<string, StrandTemplate>; statePath: string }> {
   const root = await findProjectRoot(cwd);
   const configPath = join(root, ".pi", "project.jsonc");
 
@@ -130,19 +143,16 @@ async function loadProjectConfig(cwd: string): Promise<{ root: string; configPat
     if (parsed && typeof parsed === "object") config = parsed as ProjectStrandConfig;
   }
 
+  const strands = config.strands && Object.keys(config.strands).length > 0 ? config.strands : DEFAULT_STRANDS;
   const merged: ProjectStrandConfig = {
     ...config,
-    project: {
-      name: config.project?.name,
-      description: config.project?.description,
-    },
-    knots: config.knots && config.knots.length > 0 ? config.knots : [...DEFAULTS.knots],
+    project: { name: config.project?.name, description: config.project?.description },
+    strands,
     stateFile: config.stateFile?.trim() || DEFAULTS.stateFile,
   };
 
   const statePath = resolve(root, merged.stateFile!);
-  const knots = (merged.knots ?? DEFAULTS.knots).map((knot) => knot.name);
-  return { root, configPath, config: merged, knots, statePath };
+  return { root, configPath, config: merged, strands, statePath };
 }
 
 async function loadState(cwd: string): Promise<{ state: ProjectState; runtime: Awaited<ReturnType<typeof loadProjectConfig>> }> {
@@ -178,11 +188,9 @@ async function mutateState(
 }
 
 function renderProjectWidgetText(state: ProjectState): string {
-  const active = state.slices.filter((slice) => slice.status === "active").slice(0, 3);
+  const active = state.slices.filter((s) => s.status === "active").slice(0, 3);
   if (active.length === 0) return `${state.project.name}: no active slices`;
-  const summary = active
-    .map((slice) => `${slice.id}[${slice.current_knot ?? "-"}]`)
-    .join(" · ");
+  const summary = active.map((s) => `${s.id}[${s.strand.current_knot ?? "-"}]`).join(" · ");
   return `${state.project.name}: ${summary}`;
 }
 
@@ -229,54 +237,56 @@ async function showText(ctx: ExtensionCommandContext, title: string, text: strin
   ctx.ui.notify(`${title}\n${text}`, "info");
 }
 
-async function promptForEvidence(ctx: ExtensionCommandContext, sliceId: string, knot: string): Promise<string | undefined> {
+async function promptForEvidence(ctx: ExtensionCommandContext, label: string): Promise<string | undefined> {
   if (!ctx.hasUI) return undefined;
-  return ctx.ui.editor(`Evidence summary for ${sliceId} ${knot}`, "Validated criteria and sign-off basis:\n");
+  return ctx.ui.editor(label, "Validated criteria and sign-off basis:\n");
 }
 
 export async function buildProjectStrandContext(cwd: string): Promise<{ text: string; activeSliceId?: string } | undefined> {
   const { state, runtime } = await loadState(cwd);
   if (!(await exists(runtime.statePath)) && !(await exists(runtime.configPath))) return undefined;
 
-  const knotSequence = runtime.knots.join(" → ");
-  const active = state.slices.filter((slice) => slice.status === "active");
+  const active = state.slices.filter((s) => s.status === "active");
   const activeSliceId = active[0]?.id;
-  const activeSummary = active.length > 0
-    ? active.map((slice) => `${slice.id} → ${slice.current_knot ?? "no knot"} (${slice.active_knot ? slice.active_knot.criteria.filter((c) => c.verified).length : 0}/${slice.active_knot?.criteria.length ?? 0} criteria)`).join(" · ")
+  const summary = active.length > 0
+    ? active
+        .map((s) => {
+          const knot = s.strand.knots.find((k) => k.name === s.strand.current_knot);
+          const prog = knot ? `${knot.success_criteria.filter((c) => c.met).length}/${knot.success_criteria.length}` : "0/0";
+          return `${s.id} (${s.strand.name}) → ${s.strand.current_knot ?? "no knot"} (${prog} criteria)`;
+        })
+        .join(" · ")
     : "none";
 
   const parts: string[] = [
     [
       `[pi-project-strand] ${state.project.name}`,
-      `Knot sequence: ${knotSequence}`,
-      `Active: ${activeSummary}`,
+      `Active: ${summary}`,
       `Next up: ${computeNext(state)}`,
     ].join("\n"),
   ];
 
-  for (const slice of active.filter((s) => s.pending_fast_forward)) {
-    const pff = slice.pending_fast_forward!;
-    const squashed = [pff.from_knot, ...pff.squashed_knots];
-    const knotFocusLines = squashed
-      .map((name) => {
-        const focus = (runtime.config.knots ?? []).find((k) => k.name === name)?.focus;
-        return focus ? `  - ${name}: ${focus}` : `  - ${name}`;
-      })
-      .join("\n");
+  for (const slice of active.filter((s) => s.strand.pending_fast_forward)) {
+    const pff = slice.strand.pending_fast_forward!;
+    const fromName = slice.strand.current_knot ?? slice.strand.knots.find((k) => k.status === "pending")?.name ?? "?";
+    const fromIndex = slice.strand.knots.findIndex((k) => k.name === fromName);
+    const targetIndex = slice.strand.knots.findIndex((k) => k.name === pff.target_knot);
+    const squashed = slice.strand.knots.slice(Math.max(fromIndex, 0), targetIndex);
+    const focusLines = squashed.map((k) => `  - ${k.name}: ${k.focus}`).join("\n");
     parts.push(
       [
         `⚡ FAST-FORWARD PENDING — ${slice.id}`,
-        `From: ${pff.from_knot} → Target: ${pff.target_knot}  |  Squashing: ${squashed.join(", ")}`,
+        `Target: ${pff.target_knot}  |  Squashing: ${squashed.map((k) => k.name).join(", ")}`,
         `User instructions: "${pff.user_instructions}"`,
         ``,
         `Squashed knot focus areas:`,
-        knotFocusLines,
+        focusLines,
         ``,
         `REQUIRED BEFORE ACTING:`,
-        `1. Load /skill:frs-strategy to get quality bars for each squashed knot.`,
-        `2. Synthesize a single action plan covering every squashed knot's focus + quality bars + user instructions.`,
-        `3. Present the plan to the user for approval — do NOT start work before approval.`,
-        `4. Execute the approved plan. When done, call project_tracker action=knot:complete_fast_forward slice_id=${slice.id} evidence=<summary>.`,
+        `1. Load /skill:frs-strategy for the quality bars of each squashed knot.`,
+        `2. Synthesize one action plan covering every squashed knot's focus + quality bars + the user instructions.`,
+        `3. Present the plan for approval — do NOT start before approval.`,
+        `4. Execute, then call project_tracker action=knot:complete_fast_forward slice_id=${slice.id} evidence=<summary>.`,
       ].join("\n")
     );
   }
@@ -294,9 +304,9 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "project_tracker",
     label: "Project Tracker",
-    description: "Persistent, project-scoped FRS/MVFoS tracking. Query and mutate slices, knots, criteria, plans, and milestones.",
+    description: "Persistent, project-scoped FRS tracking. Slices follow a named strand of durable knots; query and mutate slices, knots, success criteria, plans, resources, and milestones.",
     parameters: ProjectTrackerParams,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params: ProjectTrackerInput, _signal, _onUpdate, ctx) {
       let result: { text: string; state: ProjectState; error?: string };
 
       switch (params.action) {
@@ -315,90 +325,110 @@ export default function (pi: ExtensionAPI) {
           result = handleSliceGet(state, params.slice_id);
           break;
         }
-        case "knot:criteria": {
-          const { state } = await loadState(ctx.cwd);
-          result = handleKnotCriteria(state, params.slice_id);
-          break;
-        }
         case "next": {
           const { state } = await loadState(ctx.cwd);
           result = handleNext(state);
           break;
         }
-        case "plan:list": {
-          const { state } = await loadState(ctx.cwd);
-          result = handlePlanList(state);
+        case "slice:create": {
+          result = await mutateState(ctx.cwd, (state, runtime) => {
+            const strandName = params.strand ?? "";
+            const template = runtime.strands[strandName];
+            if (!template) {
+              return { text: `Error: unknown strand "${strandName}". Available: ${Object.keys(runtime.strands).join(", ")}`, state, error: "unknown strand" };
+            }
+            return handleSliceCreate(
+              state,
+              {
+                id: params.id ?? "",
+                name: params.name ?? "",
+                description: params.description ?? "",
+                type: (params.type as SliceType) ?? "vertical",
+                priority: params.priority,
+                goal: params.goal ?? "",
+                criteria: params.criteria ?? [],
+                strand: strandName,
+              },
+              template
+            );
+          });
           break;
         }
-        case "slice:create": {
+        case "slice:update": {
           result = await mutateState(ctx.cwd, (state) =>
-            handleSliceCreate(state, {
-              id: params.id ?? "",
-              name: params.name ?? "",
-              description: params.description ?? "",
-              type: (params.type as "vertical" | "horizontal") ?? "vertical",
+            handleSliceUpdate(state, params.slice_id, {
+              name: params.name,
+              description: params.description,
+              goal: params.goal,
               priority: params.priority,
+              type: params.type as SliceType | undefined,
             })
           );
           break;
         }
         case "slice:activate": {
-          result = await mutateState(ctx.cwd, (state) => handleSliceActivate(state, params.slice_id));
+          result = await mutateState(ctx.cwd, (s) => handleSliceActivate(s, params.slice_id));
           break;
         }
         case "slice:hold": {
-          result = await mutateState(ctx.cwd, (state) => handleSliceHold(state, params.slice_id));
+          result = await mutateState(ctx.cwd, (s) => handleSliceHold(s, params.slice_id));
+          break;
+        }
+        case "slice:sign_off": {
+          result = await mutateState(ctx.cwd, (s) => handleSliceSignOff(s, params.slice_id ?? "", params.message ?? "", params.evidence ?? ""));
           break;
         }
         case "knot:start": {
-          result = await mutateState(ctx.cwd, (state, runtime) =>
-            handleKnotStart(state, { slice_id: params.slice_id, knot: params.knot ?? "", criteria: params.criteria ?? [] }, runtime.knots)
+          result = await mutateState(ctx.cwd, (s) =>
+            handleKnotStart(s, { slice_id: params.slice_id, knot: params.knot ?? "", goals: params.goals ?? [], criteria: params.criteria ?? [] })
           );
           break;
         }
-        case "knot:verify_criterion": {
-          result = await mutateState(ctx.cwd, (state) =>
-            handleVerifyCriterion(state, { slice_id: params.slice_id, index: params.index ?? -1, evidence: params.evidence ?? "" })
-          );
+        case "knot:update": {
+          result = await mutateState(ctx.cwd, (s) => handleKnotUpdate(s, params.slice_id, { goals: params.goals, title: params.title }));
           break;
         }
-        case "knot:request_signoff": {
-          const { state } = await loadState(ctx.cwd);
-          result = handleKnotRequestSignoff(state, params.slice_id);
+        case "knot:set_plan": {
+          result = await mutateState(ctx.cwd, (s) => handleKnotSetPlan(s, params.slice_id, params.file_path ?? "", params.plan_status ?? "linked"));
           break;
         }
-        case "plan:link": {
-          result = await mutateState(ctx.cwd, (state) =>
-            handlePlanLink(state, { slice_id: params.slice_id, file_path: params.file_path ?? "" })
-          );
+        case "knot:sign_off": {
+          result = await mutateState(ctx.cwd, (s) => handleKnotSignOff(s, params.slice_id ?? "", params.message ?? "", params.evidence ?? ""));
           break;
         }
-        case "plan:complete": {
-          result = await mutateState(ctx.cwd, (state) => handlePlanComplete(state, params.slice_id));
-          break;
-        }
-        case "milestone:add": {
-          result = await mutateState(ctx.cwd, (state) =>
-            handleMilestoneAdd(state, { name: params.name ?? "", description: params.description ?? "" })
-          );
-          break;
-        }
-        case "slice:annotate": {
-          result = await mutateState(ctx.cwd, (state) =>
-            handleSliceAnnotate(state, params.slice_id, params.notes ?? "", params.notes_mode ?? "set")
-          );
-          break;
-        }
-        case "knot:annotate": {
-          result = await mutateState(ctx.cwd, (state) =>
-            handleKnotAnnotate(state, params.slice_id, params.notes ?? "", params.notes_mode ?? "set")
-          );
+        case "knot:fast_forward": {
+          result = await mutateState(ctx.cwd, (s) => handleKnotFastForward(s, params.slice_id ?? "", params.knot ?? "", params.notes ?? ""));
           break;
         }
         case "knot:complete_fast_forward": {
-          result = await mutateState(ctx.cwd, (state) =>
-            handleCompleteFastForward(state, params.slice_id ?? "", params.evidence ?? "")
+          result = await mutateState(ctx.cwd, (s) => handleCompleteFastForward(s, params.slice_id ?? "", params.evidence ?? ""));
+          break;
+        }
+        case "verify_criterion": {
+          result = await mutateState(ctx.cwd, (s) => handleVerifyCriterion(s, params.slice_id, (params.target ?? "knot") as Target, params.index ?? -1, params.evidence ?? ""));
+          break;
+        }
+        case "annotate": {
+          result = await mutateState(ctx.cwd, (s) => handleAnnotate(s, params.slice_id, (params.target ?? "slice") as Target, params.notes ?? "", params.notes_mode ?? "set"));
+          break;
+        }
+        case "resource:add": {
+          result = await mutateState(ctx.cwd, (s) =>
+            handleResourceAdd(s, params.slice_id, (params.target ?? "slice") as Target, {
+              type: (params.resource?.type ?? "doc") as ResourceType,
+              ref: params.resource?.ref ?? "",
+              title: params.resource?.title,
+              note: params.resource?.note,
+            })
           );
+          break;
+        }
+        case "resource:remove": {
+          result = await mutateState(ctx.cwd, (s) => handleResourceRemove(s, params.slice_id, (params.target ?? "slice") as Target, params.index ?? -1));
+          break;
+        }
+        case "milestone:add": {
+          result = await mutateState(ctx.cwd, (s) => handleMilestoneAdd(s, { name: params.name ?? "", description: params.description ?? "" }));
           break;
         }
         default: {
@@ -462,7 +492,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("project:plan", {
-    description: "Show active plan link for a slice: /project:plan <slice-id>",
+    description: "Show a slice's knots and linked plans: /project:plan <slice-id>",
     handler: async (args, ctx) => {
       const sliceId = args.trim();
       if (!sliceId) {
@@ -476,7 +506,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.registerCommand("project:knot:advance", {
-    description: "User sign-off: advance a slice to its next knot",
+    description: "User sign-off: advance a slice's active knot to signed_off",
     handler: async (args, ctx) => {
       const sliceId = args.trim();
       if (!sliceId) {
@@ -484,32 +514,50 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const { state, runtime } = await loadState(ctx.cwd);
+      const { state } = await loadState(ctx.cwd);
       const slice = state.slices.find((candidate) => candidate.id === sliceId);
       if (!slice) {
         ctx.ui.notify(`Unknown slice: ${sliceId}`, "warning");
         return;
       }
-      if (!slice.active_knot) {
+      if (!slice.strand.current_knot) {
         ctx.ui.notify(`Slice ${sliceId} has no active knot`, "warning");
         return;
       }
-      if (slice.active_knot.criteria.some((criterion) => !criterion.verified)) {
-        ctx.ui.notify(`Slice ${sliceId} still has unverified criteria`, "warning");
+      const activeKnot = slice.strand.knots.find((k) => k.name === slice.strand.current_knot)!;
+      if (activeKnot.success_criteria.some((c) => !c.met)) {
+        ctx.ui.notify(`Slice ${sliceId} still has unmet criteria`, "warning");
         return;
       }
 
-      const evidence = await promptForEvidence(ctx, sliceId, slice.active_knot.knot);
+      const evidence = await promptForEvidence(ctx, `Evidence summary for ${sliceId} ${activeKnot.name}`);
       if (!evidence) {
         ctx.ui.notify("Knot advancement cancelled", "info");
         return;
       }
 
-      const result = await mutateState(ctx.cwd, (freshState) =>
-        advanceKnotForSignoff(freshState, sliceId, runtime.knots, evidence)
-      );
+      const result = await mutateState(ctx.cwd, (fresh) => handleKnotSignOff(fresh, sliceId, "Signed off via /project:knot:advance", evidence));
       await updateWidget(ctx);
       await showText(ctx, "Knot advanced", result.text);
+    },
+  });
+
+  pi.registerCommand("project:slice:advance", {
+    description: "User sign-off: finalize a slice once all its knots are signed off",
+    handler: async (args, ctx) => {
+      const sliceId = args.trim();
+      if (!sliceId) {
+        ctx.ui.notify("Usage: /project:slice:advance <slice-id>", "warning");
+        return;
+      }
+      const evidence = await promptForEvidence(ctx, `Final validation evidence for ${sliceId}`);
+      if (!evidence) {
+        ctx.ui.notify("Slice sign-off cancelled", "info");
+        return;
+      }
+      const result = await mutateState(ctx.cwd, (fresh) => handleSliceSignOff(fresh, sliceId, "Signed off via /project:slice:advance", evidence));
+      await updateWidget(ctx);
+      await showText(ctx, "Slice sign-off", result.text);
     },
   });
 
@@ -522,7 +570,7 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const { state, runtime } = await loadState(ctx.cwd);
+      const { state } = await loadState(ctx.cwd);
       const slice = state.slices.find((s) => s.id === sliceId);
       if (!slice) {
         ctx.ui.notify(`Unknown slice: ${sliceId}`, "warning");
@@ -532,31 +580,25 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(`Slice ${sliceId} is not active`, "warning");
         return;
       }
-      if (!slice.current_knot) {
-        ctx.ui.notify(`Slice ${sliceId} has no current knot`, "warning");
-        return;
-      }
-      if (slice.pending_fast_forward) {
-        ctx.ui.notify(`Slice ${sliceId} already has a pending fast-forward (${slice.pending_fast_forward.from_knot} → ${slice.pending_fast_forward.target_knot})`, "warning");
+      if (slice.strand.pending_fast_forward) {
+        ctx.ui.notify(`Slice ${sliceId} already has a pending fast-forward (→ ${slice.strand.pending_fast_forward.target_knot})`, "warning");
         return;
       }
 
-      const currentIndex = runtime.knots.indexOf(slice.current_knot);
-      if (currentIndex === -1 || currentIndex >= runtime.knots.length - 1) {
-        ctx.ui.notify(`Slice ${sliceId} is already at the final knot (${slice.current_knot})`, "warning");
+      const knotNames = slice.strand.knots.map((k) => k.name);
+      const fromName = slice.strand.current_knot ?? slice.strand.knots.find((k) => k.status === "pending")?.name;
+      const fromIndex = fromName ? knotNames.indexOf(fromName) : -1;
+      if (fromIndex === -1 || fromIndex >= knotNames.length - 1) {
+        ctx.ui.notify(`Slice ${sliceId} cannot fast-forward (no later knot)`, "warning");
         return;
       }
 
-      const availableTargets = runtime.knots.slice(currentIndex + 1);
-      const focusMap = Object.fromEntries(
-        (runtime.config.knots ?? []).map((k) => [k.name, k.focus ?? ""])
-      );
-      const targetLines = availableTargets
-        .map((name) => `  ${name}${focusMap[name] ? ` — ${focusMap[name]}` : ""}`)
-        .join("\n");
+      const availableTargets = knotNames.slice(fromIndex + 1);
+      const focusMap = Object.fromEntries(slice.strand.knots.map((k) => [k.name, k.focus]));
+      const targetLines = availableTargets.map((name) => `  ${name}${focusMap[name] ? ` — ${focusMap[name]}` : ""}`).join("\n");
 
       const template = [
-        `Fast-forward: ${sliceId} (currently at: ${slice.current_knot})`,
+        `Fast-forward: ${sliceId} (from: ${fromName})`,
         ``,
         `Available target knots:`,
         targetLines,
@@ -577,11 +619,8 @@ export default function (pi: ExtensionAPI) {
 
       const targetMatch = filled.match(/^Target knot:\s*(.+)$/m);
       const targetKnot = targetMatch?.[1]?.trim();
-      if (!targetKnot || !runtime.knots.includes(targetKnot)) {
-        ctx.ui.notify(
-          `Invalid target knot: "${targetKnot ?? ""}". Must be one of: ${availableTargets.join(", ")}`,
-          "error"
-        );
+      if (!targetKnot || !availableTargets.includes(targetKnot)) {
+        ctx.ui.notify(`Invalid target knot: "${targetKnot ?? ""}". Must be one of: ${availableTargets.join(", ")}`, "error");
         return;
       }
 
@@ -592,7 +631,7 @@ export default function (pi: ExtensionAPI) {
           : filled
               .slice(instructionsSectionStart)
               .split("\n")
-              .slice(4) // skip header line + 3 boilerplate description lines
+              .slice(4)
               .join("\n")
               .trim();
       if (!instructions) {
@@ -600,9 +639,7 @@ export default function (pi: ExtensionAPI) {
         return;
       }
 
-      const result = await mutateState(ctx.cwd, (freshState) =>
-        handleInitFastForward(freshState, sliceId, targetKnot, instructions, runtime.knots)
-      );
+      const result = await mutateState(ctx.cwd, (fresh) => handleKnotFastForward(fresh, sliceId, targetKnot, instructions));
       await updateWidget(ctx);
       await showText(ctx, "Fast-forward initiated", result.text);
     },
