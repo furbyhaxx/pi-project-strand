@@ -1,4 +1,5 @@
 import { StringEnum } from "@earendil-works/pi-ai";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { dirname, join, resolve } from "node:path";
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
@@ -32,6 +33,8 @@ const ProjectStrandParams = Type.Object(
 
 type ProjectStrandInput = Static<typeof ProjectStrandParams>;
 
+let writeCounter = 0;
+
 async function exists(path: string): Promise<boolean> {
   try {
     await access(path);
@@ -61,25 +64,34 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params: ProjectStrandInput, _signal, _onUpdate, ctx) {
       const root = await findProjectRoot(ctx.cwd);
       const configPath = join(root, ".pi", "project.jsonc");
-
-      const configText = (await exists(configPath)) ? await readFile(configPath, "utf-8") : "";
-      const parsed = configText.trim() ? parse(configText) : undefined;
-      const existing = Object.keys((parsed as { strands?: Record<string, unknown> } | undefined)?.strands ?? {});
-
       const knots = (params.knots ?? []) as StrandKnotInput[];
-      const error = validateStrandProposal(params.name, knots, existing);
-      if (error) {
+
+      // Serialize the read-modify-write on project.jsonc: parallel project_strand
+      // calls would otherwise read the same base text and clobber each other (losing
+      // strands) and collide on a shared temp file. The queue keys on the resolved
+      // path; a unique temp name avoids any cross-write rename race.
+      const outcome = await withFileMutationQueue(configPath, async (): Promise<{ error: string | null }> => {
+        const configText = (await exists(configPath)) ? await readFile(configPath, "utf-8") : "";
+        const parsed = configText.trim() ? parse(configText) : undefined;
+        const existing = Object.keys((parsed as { strands?: Record<string, unknown> } | undefined)?.strands ?? {});
+
+        const error = validateStrandProposal(params.name, knots, existing);
+        if (error) return { error };
+
+        const nextText = buildStrandConfigText(configText, params.name, params.description ?? "", knots);
+        await mkdir(dirname(configPath), { recursive: true });
+        const tmpPath = `${configPath}.${process.pid}.${++writeCounter}.tmp`;
+        await writeFile(tmpPath, nextText, "utf-8");
+        await rename(tmpPath, configPath);
+        return { error: null };
+      });
+
+      if (outcome.error) {
         return {
-          content: [{ type: "text", text: `Error: ${error}` }],
-          details: { error },
+          content: [{ type: "text", text: `Error: ${outcome.error}` }],
+          details: { error: outcome.error },
         };
       }
-
-      const nextText = buildStrandConfigText(configText, params.name, params.description ?? "", knots);
-      await mkdir(dirname(configPath), { recursive: true });
-      const tmpPath = `${configPath}.tmp`;
-      await writeFile(tmpPath, nextText, "utf-8");
-      await rename(tmpPath, configPath);
 
       const strandName = params.name.trim();
       const knotNames = knots.map((k) => k.name.trim());
