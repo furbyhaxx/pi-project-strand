@@ -38,4 +38,9 @@ describe("buildProjectStrandBootstrap", () => {
     expect(text).toContain("advance_by");
     expect(text).toContain("two-step");
   });
+
+  test("bootstrap documents the judge path", () => {
+    const text = buildProjectStrandBootstrap();
+    expect(text).toContain("knot:judge");
+  });
 });

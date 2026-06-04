@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-04
+
+### Added
+- **Knot judge (Phase B)** — enforces `advance_by: ["judge"]`. A knot can be advanced by an independent auditor agent running in its own clean-room pi session (`noExtensions`/`noSkills`, focused judge system prompt, in the project cwd). It inspects the repo read-only, runs verification-only `bash`, and consults `project_knowledge` (read-only), then **approves** (advances the knot, evidence `judge(<model>): …`) or **rejects** (records `knot.last_verdict` + a note, returns reasons).
+- `knot:judge` `project_tracker` action (agent) and `/project:knot:judge <slice>` command (user) trigger the audit; `/project:knot:advance` remains a human override.
+- Judge model config: `judge.model` (fixed `provider/model[:thinking]`), `judge.models` (a map of glob-pattern-on-the-current-session-model → judge model, first match wins, for conditional/cross-model judging), and `judge.tools` (extra tools appended to the default `read/grep/find/ls/bash/project_knowledge`), resolved knot→strand→project; falls back to the calling session's model+thinking (with a warning) when unset.
+- `judge_timeout_seconds` project config (default 600); `knot.last_verdict` record.
+- new pure module `extensions/judge-core.ts` (model parse/glob/config/model/tool resolution, preflight, prompt builders) and SDK runner `extensions/judge.ts`.
+
 ## [0.5.0] - 2026-06-04
 
 ### Added

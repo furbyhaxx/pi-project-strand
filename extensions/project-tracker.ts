@@ -9,6 +9,7 @@ import { Type, type Static } from "typebox";
 import {
   DEFAULT_STRANDS,
   type ProjectConfig,
+  type ProjectInfo,
   type ProjectState,
   type ProjectTrackerDetails,
   type SliceStatus,
@@ -43,8 +44,19 @@ import {
   handleResourceAdd,
   handleResourceRemove,
   handleMilestoneAdd,
+  applyJudgeVerdict,
 } from "./project-tracker-core.js";
 import { migrateLegacyState } from "./project-tracker-migrate.js";
+import type { ThinkingLevel } from "@earendil-works/pi-ai";
+import { runJudgeSession } from "./judge.js";
+import {
+  judgePreflight,
+  resolveJudgeConfig,
+  resolveJudgeModel,
+  resolveJudgeTools,
+  buildJudgeSystemPrompt,
+  buildJudgeAuditPrompt,
+} from "./judge-core.js";
 
 const DEFAULTS = { stateFile: ".pi/project/state.json" } as const;
 
@@ -79,6 +91,7 @@ const ProjectTrackerParams = Type.Object(
         "knot:sign_off",
         "knot:fast_forward",
         "knot:complete_fast_forward",
+        "knot:judge",
         "verify_criterion",
         "annotate",
         "resource:add",
@@ -135,7 +148,7 @@ async function findProjectRoot(startCwd: string): Promise<string> {
   }
 }
 
-async function loadProjectConfig(cwd: string): Promise<{ root: string; configPath: string; config: ProjectStrandConfig; strands: Record<string, StrandTemplate>; statePath: string; signoffWindowSeconds: number }> {
+async function loadProjectConfig(cwd: string): Promise<{ root: string; configPath: string; config: ProjectStrandConfig; strands: Record<string, StrandTemplate>; statePath: string; signoffWindowSeconds: number; judgeTimeoutSeconds: number }> {
   const root = await findProjectRoot(cwd);
   const configPath = join(root, ".pi", "project.jsonc");
 
@@ -159,7 +172,11 @@ async function loadProjectConfig(cwd: string): Promise<{ root: string; configPat
     typeof config.agent_signoff_window_seconds === "number" && config.agent_signoff_window_seconds > 0
       ? config.agent_signoff_window_seconds
       : 300;
-  return { root, configPath, config: merged, strands, statePath, signoffWindowSeconds };
+  const judgeTimeoutSeconds =
+    typeof config.judge_timeout_seconds === "number" && config.judge_timeout_seconds > 0
+      ? config.judge_timeout_seconds
+      : 600;
+  return { root, configPath, config: merged, strands, statePath, signoffWindowSeconds, judgeTimeoutSeconds };
 }
 
 async function loadState(cwd: string): Promise<{ state: ProjectState; runtime: Awaited<ReturnType<typeof loadProjectConfig>> }> {
@@ -276,11 +293,14 @@ export async function buildProjectStrandContext(cwd: string): Promise<{ text: st
   for (const slice of active) {
     const knot = slice.strand.knots.find((k) => k.name === slice.strand.current_knot);
     if (!knot) continue;
-    parts.push(
-      knot.advance_by.includes("agent")
-        ? `${slice.id} → ${knot.name}: agent self-advance ALLOWED (advance_by=[${knot.advance_by.join(", ")}]). Protocol: verify all criteria, then knot:sign_off (arms + returns the checklist) → knot:sign_off WITH evidence within the freshness window to confirm.`
-        : `${slice.id} → ${knot.name}: agent self-advance NOT allowed (advance_by=[${knot.advance_by.join(", ")}]). Advance via ${knot.advance_by.includes("judge") ? "the judge (Phase B) or " : ""}user /project:knot:advance ${slice.id}.`
-    );
+    if (knot.advance_by.includes("agent")) {
+      parts.push(`${slice.id} → ${knot.name}: agent self-advance ALLOWED (advance_by=[${knot.advance_by.join(", ")}]). Protocol: verify all criteria, then knot:sign_off (arms + returns the checklist) → knot:sign_off WITH evidence within the freshness window to confirm.`);
+    } else if (knot.advance_by.includes("judge")) {
+      const last = knot.last_verdict && !knot.last_verdict.approved ? ` Last judge verdict: REJECTED — ${knot.last_verdict.reasons}` : "";
+      parts.push(`${slice.id} → ${knot.name}: advance via the judge — project_tracker action=knot:judge slice_id=${slice.id} (or /project:knot:advance to override).${last}`);
+    } else {
+      parts.push(`${slice.id} → ${knot.name}: agent self-advance NOT allowed (advance_by=[${knot.advance_by.join(", ")}]). Advance via /project:knot:advance ${slice.id}.`);
+    }
   }
 
   for (const slice of active.filter((s) => s.strand.pending_fast_forward)) {
@@ -334,6 +354,52 @@ const MIGRATE_PASS2_MESSAGE = [
   `When all slices are done, summarize what you reconstructed and every point you asked the user about.`,
   `</pi-project-strand-command>`,
 ].join("\n");
+
+async function runKnotJudge(ctx: ExtensionContext, sliceId: string): Promise<{ text: string; error?: string }> {
+  const { state, runtime } = await loadState(ctx.cwd);
+  const slice = state.slices.find((s) => s.id === sliceId);
+  if (!slice) return { text: `Unknown slice: ${sliceId}`, error: "unknown slice" };
+
+  const pre = judgePreflight(slice);
+  if (!pre.ok) return { text: `Error: ${pre.error}`, error: "preflight" };
+  const knot = pre.knot;
+
+  const strandJudge = runtime.config.strands?.[slice.strand.name]?.judge ?? null;
+  const cfg = resolveJudgeConfig(knot.judge, strandJudge, runtime.config.judge ?? null);
+  const sessionModelId = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "";
+  const resolution = resolveJudgeModel(cfg, sessionModelId);
+
+  let model = ctx.model;
+  let thinkingLevel = (ctx.thinkingLevel ?? "off") as ThinkingLevel;
+  let modelSpec: string;
+  if (resolution.fromSession) {
+    if (!model) return { text: "Error: no judge model configured and no active session model to fall back to.", error: "no model" };
+    modelSpec = `${model.provider}/${model.id} (session fallback)`;
+  } else {
+    const resolved = ctx.modelRegistry.find(resolution.provider, resolution.model);
+    if (!resolved) return { text: `Error: judge model "${resolution.spec}" not found in the model registry.`, error: "model not found" };
+    model = resolved;
+    thinkingLevel = (resolution.thinking ?? thinkingLevel ?? "off") as ThinkingLevel;
+    modelSpec = resolution.spec;
+  }
+
+  const run = await runJudgeSession({
+    cwd: ctx.cwd,
+    model,
+    thinkingLevel,
+    tools: resolveJudgeTools(cfg),
+    systemPrompt: buildJudgeSystemPrompt(),
+    auditPrompt: buildJudgeAuditPrompt(state.project as ProjectInfo, slice, knot),
+    timeoutMs: runtime.judgeTimeoutSeconds * 1000,
+  });
+
+  if (!run.verdict) return { text: `Judge inconclusive for ${sliceId} → ${knot.name}: ${run.error}`, error: run.error ?? "inconclusive" };
+
+  const applied = await mutateState(ctx.cwd, (s) =>
+    applyJudgeVerdict(s, sliceId, { ...run.verdict!, model: modelSpec, at: isoNow() })
+  );
+  return { text: applied.text, error: applied.error };
+}
 
 export default function (pi: ExtensionAPI) {
   for (const event of ["session_start", "session_switch", "session_fork", "session_tree"] as const) {
@@ -446,6 +512,12 @@ export default function (pi: ExtensionAPI) {
         }
         case "knot:complete_fast_forward": {
           result = await mutateState(ctx.cwd, (s) => handleCompleteFastForward(s, params.slice_id ?? "", params.evidence ?? ""));
+          break;
+        }
+        case "knot:judge": {
+          const r = await runKnotJudge(ctx, params.slice_id ?? "");
+          const { state } = await loadState(ctx.cwd);
+          result = { text: r.text, state, ...(r.error ? { error: r.error } : {}) };
           break;
         }
         case "verify_criterion": {
@@ -686,6 +758,21 @@ export default function (pi: ExtensionAPI) {
       const result = await mutateState(ctx.cwd, (fresh) => handleKnotFastForward(fresh, sliceId, targetKnot, instructions));
       await updateWidget(ctx);
       await showText(ctx, "Fast-forward initiated", result.text);
+    },
+  });
+
+  pi.registerCommand("project:knot:judge", {
+    description: "Run the judge to audit a slice's active knot and advance it if approved",
+    handler: async (args, ctx) => {
+      const sliceId = args.trim();
+      if (!sliceId) {
+        ctx.ui.notify("Usage: /project:knot:judge <slice-id>", "warning");
+        return;
+      }
+      ctx.ui.notify(`Running judge for ${sliceId}… (spawns an auditor session)`, "info");
+      const r = await runKnotJudge(ctx, sliceId);
+      await updateWidget(ctx);
+      await showText(ctx, "Judge", r.text);
     },
   });
 
