@@ -4,6 +4,15 @@ export type KnotStatus = "pending" | "active" | "signed_off" | "fast_forwarded";
 export type PlanStatus = "linked" | "complete";
 export type ResourceType = "doc" | "file" | "url" | "report" | "memory" | "knowledge";
 export type Target = "slice" | "knot";
+export type AdvanceActor = "human" | "agent" | "judge";
+
+export interface JudgeConfig {
+  model: string; // "provider/model:thinking"; enforced in Phase B
+}
+
+export interface SignoffArm {
+  armed_at: string; // ISO; set in agent two-phase phase-1, cleared on advance/expiry
+}
 
 export interface ProjectInfo {
   name: string;
@@ -45,6 +54,9 @@ export interface Knot {
   signed_off_message: string | null;
   validation_evidence_summary: string | null;
   notes: string | null;
+  advance_by: AdvanceActor[];
+  judge: JudgeConfig | null;
+  signoff_arm: SignoffArm | null;
 }
 
 export interface PendingFastForward {
@@ -108,11 +120,14 @@ export interface StrandKnotTemplate {
   name: string;
   focus: string;
   title?: string;
+  advance_by?: AdvanceActor[]; // default ["human"]
+  judge?: JudgeConfig;         // Phase B; per-knot override
 }
 
 export interface StrandTemplate {
   description: string;
   knots: StrandKnotTemplate[];
+  judge?: JudgeConfig;         // Phase B; strand default
 }
 
 export interface ProjectConfig {
@@ -121,6 +136,8 @@ export interface ProjectConfig {
     description?: string;
   };
   strands?: Record<string, StrandTemplate>;
+  judge?: JudgeConfig;                     // Phase B; project default
+  agent_signoff_window_seconds?: number;   // default 300
 }
 
 export function isoNow(): string {
@@ -132,24 +149,49 @@ export function isoNow(): string {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_STRANDS: Record<string, StrandTemplate> = {
-  quick: {
-    description: "Quick strand for simple, scoped, or smaller work.",
+  spike: {
+    description: "Throwaway experiments to explore and decide on a direction before committing to real implementation.",
     knots: [
-      { name: "Prototype", focus: "Research/prototype approaches and ground the decision on how to build it." },
-      { name: "Realization", focus: "Build the final implementation incl. required tests, ready for finalization." },
-      { name: "Finalization", focus: "Validation, review, and polishing to finalize the strand." },
+      { name: "Setup", focus: "Frame the question/hypothesis, define what a useful answer looks like, and prepare a disposable experiment environment.", advance_by: ["agent"] },
+      { name: "Experiment", focus: "Run the fastest experiments that produce real signal; optimize for learning, not production quality.", advance_by: ["agent"] },
+      { name: "Decision", focus: "Capture findings and make a clear recommendation; record what to keep, discard, or follow up with a real slice.", advance_by: ["human"] },
+    ],
+  },
+  quick: {
+    description: "Small, well-scoped slices that need a compact path from proof to implementation.",
+    knots: [
+      { name: "Prototype", focus: "Establish a minimal, observable proof of the slice direction and de-risk the core approach.", advance_by: ["human"] },
+      { name: "Realization", focus: "Implement the slice completely enough to satisfy its success criteria with real behavior and tests.", advance_by: ["agent"] },
+      { name: "Finalization", focus: "Verify, document, clean up, and prepare the slice for sign-off.", advance_by: ["human"] },
+    ],
+  },
+  "deep-research": {
+    description: "Substantial research slices where a broad question must be scoped, sourced, analyzed, and synthesized into a cited answer.",
+    knots: [
+      { name: "Preparation", focus: "Broad source scouting and scope shaping: collect high-value sources, record decision points, and frame the research question.", advance_by: ["agent"] },
+      { name: "DeepResearch", focus: "Targeted deep analysis of the selected sources: extract evidence, compare claims, and probe for gaps and contradictions.", advance_by: ["agent"] },
+      { name: "Synthesis", focus: "Aggregate research outputs into the relevant findings: reconcile conflicts, separate signal from noise, and structure conclusions.", advance_by: ["agent"] },
+      { name: "Finalization", focus: "Produce the final answer/report package with citations, reproducibility notes, and a confidence assessment.", advance_by: ["agent"] },
+    ],
+  },
+  change: {
+    description: "A scoped change to something that already exists: a targeted edit to existing components, patches, or configuration.",
+    knots: [
+      { name: "Scope", focus: "Pin down exactly what changes, why, the blast radius, and how the change will be verified.", advance_by: ["human"] },
+      { name: "Patch", focus: "Make the focused change with minimal collateral impact and clear, reviewable diffs.", advance_by: ["agent"] },
+      { name: "Verify", focus: "Confirm the change works and nothing relevant regressed, with evidence appropriate to the change.", advance_by: ["human"] },
     ],
   },
   granular: {
-    description: "Granular strand for complex or large-scope work.",
+    description: "Complex or high-risk slices that benefit from multiple quality gates before release.",
     knots: [
-      { name: "Proof-of-Work", focus: "Prove the approach; establish design, API, patterns, and decisions for later knots." },
-      { name: "Alpha", focus: "First real, integrated implementation." },
-      { name: "Beta", focus: "Ready to show someone else." },
-      { name: "Gamma", focus: "Staging-ready, all core features." },
-      { name: "RC1", focus: "Feature complete, polishing." },
-      { name: "RC2", focus: "Early-adopter ready." },
-      { name: "Release", focus: "Production confident." },
+      { name: "Proof-of-Work", focus: "Demonstrate feasibility, identify constraints, and prove the core work can be done.", advance_by: ["human"] },
+      { name: "Alpha", focus: "Build the first functional implementation covering the main path with known gaps explicitly noted.", advance_by: ["agent"] },
+      { name: "Beta", focus: "Harden behavior, cover important edge cases, and validate against realistic usage.", advance_by: ["agent"] },
+      { name: "Gamma", focus: "Stabilize the slice, resolve remaining major issues, and prepare release-candidate quality.", advance_by: ["agent"] },
+      { name: "RC1", focus: "Run release-candidate validation, catch regressions, and verify readiness against success criteria.", advance_by: ["agent"] },
+      { name: "RC2", focus: "Perform final regression checks and polish after RC1 fixes, with no known critical blockers.", advance_by: ["human"] },
+      { name: "Release", focus: "Finalize documentation, evidence, cleanup, and sign-off for production-ready completion.", advance_by: ["human"] },
     ],
   },
 };
@@ -175,6 +217,9 @@ export function seedStrand(name: string, template: StrandTemplate): SliceStrand 
       signed_off_message: null,
       validation_evidence_summary: null,
       notes: null,
+      advance_by: k.advance_by && k.advance_by.length > 0 ? [...k.advance_by] : ["human"],
+      judge: k.judge ?? null,
+      signoff_arm: null,
     })),
   };
 }
@@ -200,6 +245,18 @@ function compareSlices(a: Slice, b: Slice): number {
   return a.id.localeCompare(b.id);
 }
 
+function normalizeKnot(k: Knot): Knot {
+  return {
+    ...k,
+    advance_by: Array.isArray(k.advance_by) && k.advance_by.length > 0 ? k.advance_by : ["human"],
+    judge: k.judge ?? null,
+    signoff_arm: k.signoff_arm ?? null,
+    resources: k.resources ?? [],
+    goals: k.goals ?? [],
+    success_criteria: k.success_criteria ?? [],
+  };
+}
+
 export function normalizeState(state: ProjectState, config: ProjectConfig = {}, cwdName = "Project"): ProjectState {
   const base = state ?? createInitialState(config, cwdName);
   return {
@@ -208,7 +265,9 @@ export function normalizeState(state: ProjectState, config: ProjectConfig = {}, 
       description: config.project?.description?.trim() ?? base.project?.description ?? "",
       updated_at: base.project?.updated_at || isoNow(),
     },
-    slices: [...(base.slices ?? [])].sort(compareSlices),
+    slices: [...(base.slices ?? [])]
+      .map((s) => (s.strand ? { ...s, strand: { ...s.strand, knots: (s.strand.knots ?? []).map(normalizeKnot) } } : s))
+      .sort(compareSlices),
     milestones: [...(base.milestones ?? [])],
   };
 }
@@ -430,32 +489,82 @@ export function handleKnotSetPlan(state: ProjectState, sliceId: string | undefin
   return { text: `Plan ${status} for ${slice.id} → ${knot.name}: ${knot.plan.path}`, state: touch(normalizeState(current)) };
 }
 
-export function handleKnotSignOff(state: ProjectState, sliceId: string, message: string, evidence: string): ActionResult {
-  const current = cloneState(state);
-  const slice = findSlice(current, sliceId);
-  if (!slice) return { text: `Error: unknown slice ${sliceId}`, state, error: "unknown slice" };
+/** Sign off the slice's active knot in place. Returns null on success, or an error tuple. */
+function signOffActiveKnotInPlace(slice: Slice, message: string, evidence: string): { error: string; text: string } | null {
   const knot = getActiveKnot(slice);
-  if (!knot) return { text: `Error: slice ${slice.id} has no active knot`, state, error: "no active knot" };
+  if (!knot) return { error: "no active knot", text: `Error: slice ${slice.id} has no active knot` };
   const unmet = knot.success_criteria.filter((c) => !c.met);
-  if (unmet.length > 0) {
-    return {
-      text: `Error: ${slice.id} → ${knot.name} has unmet criteria: ${unmet.map((c) => c.text).join("; ")}`,
-      state,
-      error: "unmet criteria",
-    };
-  }
-  if (!evidence?.trim()) return { text: "Error: validation evidence is required", state, error: "missing evidence" };
-
+  if (unmet.length > 0) return { error: "unmet criteria", text: `Error: ${slice.id} → ${knot.name} has unmet criteria: ${unmet.map((c) => c.text).join("; ")}` };
+  if (!evidence?.trim()) return { error: "missing evidence", text: "Error: validation evidence is required" };
   knot.status = "signed_off";
   knot.signed_off = true;
   knot.signed_off_message = message?.trim() || null;
   knot.validation_evidence_summary = evidence.trim();
   knot.completed_at = isoNow();
+  knot.signoff_arm = null;
   slice.strand.current_knot = null;
+  return null;
+}
 
+export function handleKnotSignOff(state: ProjectState, sliceId: string, message: string, evidence: string): ActionResult {
+  const current = cloneState(state);
+  const slice = findSlice(current, sliceId);
+  if (!slice) return { text: `Error: unknown slice ${sliceId}`, state, error: "unknown slice" };
+  const knotName = slice.strand.current_knot;
+  const err = signOffActiveKnotInPlace(slice, message, evidence);
+  if (err) return { text: err.text, state, error: err.error };
   const next = firstPendingKnot(slice);
   const tail = next ? `Next pending knot: ${next.name}.` : "All knots signed off — ready for slice sign-off.";
-  return { text: `Signed off ${slice.id} → ${knot.name}. ${tail}`, state: touch(normalizeState(current)) };
+  return { text: `Signed off ${slice.id} → ${knotName}. ${tail}`, state: touch(normalizeState(current)) };
+}
+
+function elapsedSeconds(fromIso: string, nowIso: string): number {
+  return (Date.parse(nowIso) - Date.parse(fromIso)) / 1000;
+}
+
+export function handleAgentSignOff(
+  state: ProjectState,
+  sliceId: string,
+  message: string,
+  evidence: string,
+  now: string,
+  windowSeconds: number
+): ActionResult {
+  const current = cloneState(state);
+  const slice = findSlice(current, sliceId);
+  if (!slice) return { text: `Error: unknown slice ${sliceId}`, state, error: "unknown slice" };
+  const knot = getActiveKnot(slice);
+  if (!knot) return { text: `Error: slice ${slice.id} has no active knot`, state, error: "no active knot" };
+
+  if (!knot.advance_by.includes("agent")) {
+    return {
+      text: `Error: agent self-advance is not permitted for ${slice.id} → ${knot.name} (advance_by=[${knot.advance_by.join(", ")}]). Ask the user to sign off via /project:knot:advance ${slice.id}.`,
+      state,
+      error: "agent advance not permitted",
+    };
+  }
+
+  const armedFresh = knot.signoff_arm && elapsedSeconds(knot.signoff_arm.armed_at, now) <= windowSeconds;
+
+  if (!armedFresh) {
+    knot.signoff_arm = { armed_at: now };
+    const lines = [
+      `ARMED ${slice.id} → ${knot.name}. This did NOT advance — it is a deliberate two-step confirmation.`,
+      `Goals: ${knot.goals.length ? knot.goals.join("; ") : "(none set)"}`,
+      `Success criteria:`,
+      ...knot.success_criteria.map((c, i) => `  ${c.met ? "✓" : "○"} [${i}] ${c.text}${c.evidence ? ` — ${c.evidence}` : ""}`),
+      ``,
+      `Verify every criterion with real evidence via verify_criterion. Once all are genuinely met, call knot:sign_off again WITH an evidence summary within ${windowSeconds}s to confirm. After that window this resets.`,
+    ];
+    return { text: lines.join("\n"), state: touch(normalizeState(current)), error: "armed" };
+  }
+
+  // Within window → confirm.
+  const err = signOffActiveKnotInPlace(slice, message, evidence);
+  if (err) return { text: err.text, state, error: err.error }; // arm preserved (clone discarded)
+  const next = firstPendingKnot(slice);
+  const tail = next ? `Next pending knot: ${next.name}.` : "All knots signed off — ready for slice sign-off.";
+  return { text: `Agent-confirmed sign-off ${slice.id} → ${knot.name}. ${tail}`, state: touch(normalizeState(current)) };
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import {
   handleKnotUpdate,
   handleKnotSetPlan,
   handleKnotSignOff,
+  handleAgentSignOff,
   handleKnotFastForward,
   handleCompleteFastForward,
   handleVerifyCriterion,
@@ -47,10 +48,31 @@ function withSlice() {
 }
 
 describe("seeding", () => {
-  test("DEFAULT_STRANDS ships quick and granular", () => {
-    expect(Object.keys(DEFAULT_STRANDS).sort()).toEqual(["granular", "quick"]);
+  test("DEFAULT_STRANDS ships the five generic strands with bookend advance_by", () => {
+    expect(Object.keys(DEFAULT_STRANDS).sort()).toEqual(["change", "deep-research", "granular", "quick", "spike"]);
     expect(quick.knots.map((k) => k.name)).toEqual(["Prototype", "Realization", "Finalization"]);
     expect(DEFAULT_STRANDS.granular.knots).toHaveLength(7);
+    expect(quick.knots.map((k) => k.advance_by)).toEqual([["human"], ["agent"], ["human"]]);
+    expect(DEFAULT_STRANDS["deep-research"].knots.every((k) => k.advance_by?.[0] === "agent")).toBe(true);
+    expect(DEFAULT_STRANDS.spike.knots.map((k) => k.advance_by![0])).toEqual(["agent", "agent", "human"]);
+    expect(DEFAULT_STRANDS.granular.knots.map((k) => k.advance_by![0])).toEqual(["human", "agent", "agent", "agent", "agent", "human", "human"]);
+  });
+
+  test("seedStrand copies advance_by (default human) + judge + null signoff_arm", () => {
+    const s = seedStrand("quick", quick);
+    expect(s.knots.map((k) => k.advance_by)).toEqual([["human"], ["agent"], ["human"]]);
+    expect(s.knots.every((k) => k.signoff_arm === null && k.judge === null)).toBe(true);
+    const noAdvance = seedStrand("x", { description: "d", knots: [{ name: "K", focus: "f" }] });
+    expect(noAdvance.knots[0]!.advance_by).toEqual(["human"]);
+  });
+
+  test("normalizeState backfills advance_by/signoff_arm on legacy-shaped knots", () => {
+    const base = withSlice();
+    delete (base.slices[0]!.strand.knots[0] as any).advance_by;
+    delete (base.slices[0]!.strand.knots[0] as any).signoff_arm;
+    const norm = normalizeState(base, { project: { name: "EdgeOS" } }, "fallback");
+    expect(norm.slices[0]!.strand.knots[0]!.advance_by).toEqual(["human"]);
+    expect(norm.slices[0]!.strand.knots[0]!.signoff_arm).toBeNull();
   });
 
   test("seedStrand instantiates all knots as pending with focus copied", () => {
@@ -308,5 +330,66 @@ describe("computeNext", () => {
       state = handleKnotSignOff(state, "dns-cache", "m", "e").state;
     }
     expect(computeNext(state)).toContain("slice sign-off");
+  });
+});
+
+describe("agent two-phase sign-off", () => {
+  const WINDOW = 300;
+  function armed(state: any, knot: string) {
+    let s = handleSliceActivate(state, "dns-cache").state;
+    s = handleKnotStart(s, { slice_id: "dns-cache", knot, goals: [], criteria: ["c1", "c2"] }).state;
+    return s;
+  }
+  const t0 = "2026-06-04T00:00:00.000Z";
+  const t1 = "2026-06-04T00:02:00.000Z"; // +120s (within 300)
+  const tLate = "2026-06-04T00:10:00.000Z"; // +600s (expired)
+
+  test("refused when agent not permitted (default human knot)", () => {
+    const s = armed(withSlice(), "Prototype"); // quick.Prototype = ["human"]
+    const r = handleAgentSignOff(s, "dns-cache", "m", "e", t0, WINDOW);
+    expect(r.error).toBe("agent advance not permitted");
+    expect(r.text).toContain("/project:knot:advance");
+  });
+
+  test("first call arms (no advance) and returns the criteria challenge", () => {
+    const s = armed(withSlice(), "Realization"); // quick.Realization = ["agent"]
+    const r = handleAgentSignOff(s, "dns-cache", "m", "e", t0, WINDOW);
+    expect(r.error).toBe("armed");
+    expect(r.state.slices[0]!.strand.knots[1]!.signoff_arm).toEqual({ armed_at: t0 });
+    expect(r.state.slices[0]!.strand.knots[1]!.status).toBe("active");
+    expect(r.text).toContain("c1");
+  });
+
+  test("second call within window + all met + evidence advances and clears arm", () => {
+    let s = armed(withSlice(), "Realization");
+    s = handleAgentSignOff(s, "dns-cache", "m", "e", t0, WINDOW).state;
+    s = handleVerifyCriterion(s, "dns-cache", "knot", 0, "e0").state;
+    s = handleVerifyCriterion(s, "dns-cache", "knot", 1, "e1").state;
+    const r = handleAgentSignOff(s, "dns-cache", "agent done", "all green", t1, WINDOW);
+    expect(r.error).toBeUndefined();
+    const knot = r.state.slices[0]!.strand.knots[1]!;
+    expect(knot.status).toBe("signed_off");
+    expect(knot.validation_evidence_summary).toBe("all green");
+    expect(knot.signoff_arm).toBeNull();
+    expect(r.state.slices[0]!.strand.current_knot).toBeNull();
+  });
+
+  test("confirm with unmet criteria is refused (stays armed)", () => {
+    let s = armed(withSlice(), "Realization");
+    s = handleAgentSignOff(s, "dns-cache", "m", "e", t0, WINDOW).state;
+    const r = handleAgentSignOff(s, "dns-cache", "m", "e", t1, WINDOW);
+    expect(r.error).toBe("unmet criteria");
+    expect(r.state.slices[0]!.strand.knots[1]!.signoff_arm).toEqual({ armed_at: t0 });
+  });
+
+  test("second call after window re-arms instead of advancing", () => {
+    let s = armed(withSlice(), "Realization");
+    s = handleAgentSignOff(s, "dns-cache", "m", "e", t0, WINDOW).state;
+    s = handleVerifyCriterion(s, "dns-cache", "knot", 0, "e0").state;
+    s = handleVerifyCriterion(s, "dns-cache", "knot", 1, "e1").state;
+    const r = handleAgentSignOff(s, "dns-cache", "m", "all green", tLate, WINDOW);
+    expect(r.error).toBe("armed");
+    expect(r.state.slices[0]!.strand.knots[1]!.signoff_arm).toEqual({ armed_at: tLate });
+    expect(r.state.slices[0]!.strand.knots[1]!.status).toBe("active");
   });
 });
