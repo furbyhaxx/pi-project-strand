@@ -21,6 +21,7 @@ import {
   handleResourceAdd,
   handleResourceRemove,
   handleMilestoneAdd,
+  applyJudgeVerdict,
   computeNext,
 } from "../../extensions/project-tracker-core.js";
 
@@ -73,6 +74,14 @@ describe("seeding", () => {
     const norm = normalizeState(base, { project: { name: "EdgeOS" } }, "fallback");
     expect(norm.slices[0]!.strand.knots[0]!.advance_by).toEqual(["human"]);
     expect(norm.slices[0]!.strand.knots[0]!.signoff_arm).toBeNull();
+  });
+
+  test("seedStrand + normalize default last_verdict to null", () => {
+    expect(seedStrand("quick", quick).knots.every((k) => k.last_verdict === null)).toBe(true);
+    const base = withSlice();
+    delete (base.slices[0]!.strand.knots[0] as any).last_verdict;
+    const norm = normalizeState(base, { project: { name: "EdgeOS" } }, "fallback");
+    expect(norm.slices[0]!.strand.knots[0]!.last_verdict).toBeNull();
   });
 
   test("seedStrand instantiates all knots as pending with focus copied", () => {
@@ -391,5 +400,42 @@ describe("agent two-phase sign-off", () => {
     expect(r.error).toBe("armed");
     expect(r.state.slices[0]!.strand.knots[1]!.signoff_arm).toEqual({ armed_at: tLate });
     expect(r.state.slices[0]!.strand.knots[1]!.status).toBe("active");
+  });
+});
+
+describe("applyJudgeVerdict", () => {
+  function activeJudgeKnot() {
+    let s = handleSliceActivate(withSlice(), "dns-cache").state;
+    s = handleKnotStart(s, { slice_id: "dns-cache", knot: "Prototype", goals: [], criteria: ["c1", "c2"] }).state;
+    return s;
+  }
+  const v = (approved: boolean): any => ({
+    approved,
+    reasons: approved ? "all good" : "missing tests",
+    unmet: approved ? [] : ["c2"],
+    model: "anthropic/claude-opus-4-8:high",
+    at: "2026-06-04T00:00:00.000Z",
+  });
+
+  test("approve marks criteria met (judge-verified), advances, records verdict", () => {
+    const r = applyJudgeVerdict(activeJudgeKnot(), "dns-cache", v(true));
+    expect(r.error).toBeUndefined();
+    const knot = r.state.slices[0]!.strand.knots[0]!;
+    expect(knot.status).toBe("signed_off");
+    expect(knot.success_criteria.every((c) => c.met)).toBe(true);
+    expect(knot.validation_evidence_summary).toContain("judge(anthropic/claude-opus-4-8:high)");
+    expect(knot.last_verdict!.approved).toBe(true);
+    expect(r.state.slices[0]!.strand.current_knot).toBeNull();
+  });
+
+  test("reject records verdict + note, does not advance", () => {
+    const r = applyJudgeVerdict(activeJudgeKnot(), "dns-cache", v(false));
+    expect(r.error).toBeUndefined();
+    const knot = r.state.slices[0]!.strand.knots[0]!;
+    expect(knot.status).toBe("active");
+    expect(knot.last_verdict!.approved).toBe(false);
+    expect(knot.notes).toContain("Judge rejection");
+    expect(knot.notes).toContain("missing tests");
+    expect(r.state.slices[0]!.strand.current_knot).toBe("Prototype");
   });
 });

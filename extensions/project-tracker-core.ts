@@ -7,7 +7,17 @@ export type Target = "slice" | "knot";
 export type AdvanceActor = "human" | "agent" | "judge";
 
 export interface JudgeConfig {
-  model: string; // "provider/model:thinking"; enforced in Phase B
+  model?: string;                   // fixed judge model "provider/model[:thinking]"
+  models?: Record<string, string>;  // glob(current session "provider/model") -> judge model; first match wins
+  tools?: string[];                 // extra tool names appended to the default judge toolset
+}
+
+export interface JudgeVerdict {
+  approved: boolean;
+  reasons: string;
+  unmet: string[];
+  model: string; // resolved "provider/model[:thinking]" actually used (or "<id> (session fallback)")
+  at: string;    // ISO
 }
 
 export interface SignoffArm {
@@ -57,6 +67,7 @@ export interface Knot {
   advance_by: AdvanceActor[];
   judge: JudgeConfig | null;
   signoff_arm: SignoffArm | null;
+  last_verdict: JudgeVerdict | null;
 }
 
 export interface PendingFastForward {
@@ -136,8 +147,9 @@ export interface ProjectConfig {
     description?: string;
   };
   strands?: Record<string, StrandTemplate>;
-  judge?: JudgeConfig;                     // Phase B; project default
+  judge?: JudgeConfig;                     // project default
   agent_signoff_window_seconds?: number;   // default 300
+  judge_timeout_seconds?: number;          // default 600
 }
 
 export function isoNow(): string {
@@ -220,6 +232,7 @@ export function seedStrand(name: string, template: StrandTemplate): SliceStrand 
       advance_by: k.advance_by && k.advance_by.length > 0 ? [...k.advance_by] : ["human"],
       judge: k.judge ?? null,
       signoff_arm: null,
+      last_verdict: null,
     })),
   };
 }
@@ -251,6 +264,7 @@ function normalizeKnot(k: Knot): Knot {
     advance_by: Array.isArray(k.advance_by) && k.advance_by.length > 0 ? k.advance_by : ["human"],
     judge: k.judge ?? null,
     signoff_arm: k.signoff_arm ?? null,
+    last_verdict: k.last_verdict ?? null,
     resources: k.resources ?? [],
     goals: k.goals ?? [],
     success_criteria: k.success_criteria ?? [],
@@ -565,6 +579,36 @@ export function handleAgentSignOff(
   const next = firstPendingKnot(slice);
   const tail = next ? `Next pending knot: ${next.name}.` : "All knots signed off — ready for slice sign-off.";
   return { text: `Agent-confirmed sign-off ${slice.id} → ${knot.name}. ${tail}`, state: touch(normalizeState(current)) };
+}
+
+export function applyJudgeVerdict(state: ProjectState, sliceId: string, verdict: JudgeVerdict): ActionResult {
+  const current = cloneState(state);
+  const slice = findSlice(current, sliceId);
+  if (!slice) return { text: `Error: unknown slice ${sliceId}`, state, error: "unknown slice" };
+  const knot = getActiveKnot(slice);
+  if (!knot) return { text: `Error: slice ${slice.id} has no active knot`, state, error: "no active knot" };
+
+  knot.last_verdict = verdict;
+
+  if (verdict.approved) {
+    for (const c of knot.success_criteria) {
+      if (!c.met) {
+        c.met = true;
+        c.evidence = c.evidence ?? `judge-verified (${verdict.model})`;
+        c.met_at = isoNow();
+      }
+    }
+    const knotName = knot.name;
+    const err = signOffActiveKnotInPlace(slice, `Judge approved (${verdict.model})`, `judge(${verdict.model}): ${verdict.reasons}`);
+    if (err) return { text: err.text, state, error: err.error };
+    const next = firstPendingKnot(slice);
+    const tail = next ? `Next pending knot: ${next.name}.` : "All knots signed off — ready for slice sign-off.";
+    return { text: `Judge APPROVED ${slice.id} → ${knotName}. ${tail}`, state: touch(normalizeState(current)) };
+  }
+
+  const note = `Judge rejection (${verdict.model}): ${verdict.reasons}${verdict.unmet.length ? ` | unmet: ${verdict.unmet.join("; ")}` : ""}`;
+  knot.notes = knot.notes ? `${knot.notes}\n\n${note}` : note;
+  return { text: `Judge REJECTED ${slice.id} → ${knot.name}: ${verdict.reasons}`, state: touch(normalizeState(current)) };
 }
 
 // ---------------------------------------------------------------------------
