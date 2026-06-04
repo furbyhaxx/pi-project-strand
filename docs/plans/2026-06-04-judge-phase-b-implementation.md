@@ -548,13 +548,12 @@ git commit -m "feat(judge): clean-room SDK runner (runJudgeSession) with submit_
 - [ ] **Step 1: Imports.** Add to the `./project-tracker-core.js` import block: `applyJudgeVerdict`, `type ProjectInfo`. Add new imports:
 
 ```ts
-import { getModel } from "@earendil-works/pi-ai";
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 import { runJudgeSession } from "./judge.js";
 import { judgePreflight, resolveJudgeConfig, resolveJudgeModel, resolveJudgeTools, buildJudgeSystemPrompt, buildJudgeAuditPrompt } from "./judge-core.js";
 ```
 
-(If `getModel`/`ThinkingLevel` live in `@earendil-works/pi-coding-agent` in this version, import from there — grep to confirm, same as Task 4's note.)
+Configured judge models are resolved through `ctx.modelRegistry.find(provider, modelId)` (handles custom providers from `models.json`, e.g. `github-copilot`) — NOT pi-ai's `getModel`, which is typed to built-in models only.
 
 - [ ] **Step 2: Add `judgeTimeoutSeconds` to `loadProjectConfig`.** Next to `signoffWindowSeconds`:
 
@@ -591,7 +590,7 @@ async function runKnotJudge(ctx: ExtensionCommandContext | ExtensionContext, sli
     if (!model) return { text: "Error: no judge model configured and no active session model to fall back to.", error: "no model" };
     modelSpec = `${model.provider}/${model.id} (session fallback)`;
   } else {
-    const resolved = getModel(resolution.provider, resolution.model);
+    const resolved = ctx.modelRegistry.find(resolution.provider, resolution.model);
     if (!resolved) return { text: `Error: judge model "${resolution.spec}" not found in the model registry.`, error: "model not found" };
     model = resolved;
     thinkingLevel = (resolution.thinking ?? thinkingLevel ?? "off") as ThinkingLevel;
