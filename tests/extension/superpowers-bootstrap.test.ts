@@ -32,4 +32,10 @@ describe("buildProjectStrandBootstrap", () => {
     expect(text).toContain("/project:new:slice");
     expect(text).not.toContain("/project:brainstorm");
   });
+
+  test("bootstrap documents advance_by and the agent two-phase protocol", () => {
+    const text = buildProjectStrandBootstrap();
+    expect(text).toContain("advance_by");
+    expect(text).toContain("two-step");
+  });
 });

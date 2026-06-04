@@ -43,6 +43,21 @@ A knot is **not** transient state that gets erased on completion — it is a dur
 
 When a knot is signed off, its criteria, evidence, plan, and resources are preserved. Nothing is wiped. This history is queryable for later knots and for slice sign-off.
 
+## Advancement policy
+
+Each knot declares an **`advance_by`** list naming who may advance it: any combination of **`human`**, **`agent`**, and **`judge`**. It is **per-knot** and **any-of** — any listed actor may advance the knot. The default is **`["human"]`**.
+
+- **Human override is always available.** Regardless of `advance_by`, the user can always advance a knot via `/project:knot:advance`. The list only gates *autonomous* actors.
+- **Agent self-advance is a deliberate two-phase armed confirmation.** When `advance_by` includes `agent`, the agent does **not** advance in a single step:
+  1. **Arm** — the first `knot:sign_off` records an arm timestamp and returns the criteria checklist. It does **not** advance the knot.
+  2. **Confirm** — after genuinely verifying every success criterion with evidence, a second `knot:sign_off` **with an evidence summary**, within the freshness window (`agent_signoff_window_seconds`, default 300s), confirms and advances. If criteria are unmet the confirm is refused (the arm is kept); if the window has lapsed, the call re-arms instead of advancing.
+- **`judge`** is parsed/accepted but enforcement is deferred (Phase B); a `judge`-only knot is advanced by the human override until then.
+
+**Built-in defaults — human at the bookends, agent in the middle.** The five default strands gate *direction* at the start and *shipping* at the end with the human, while letting the agent run the productive middle:
+
+- **deep-research** and **spike** run autonomously (every knot is `agent`) — research and throwaway experiments need no human gate between stages.
+- **quick**, **change**, and **granular** keep the human on the opening knot (set direction) and the closing knot(s) (sign off shipping), with `agent` on the implementation knots in between.
+
 ## Lifecycle commands
 
 - **`/project:new:slice <request>`** — interactive funnel that captures the slice goal + success criteria, picks a strand, and creates the slice (replaces the old brainstorm entry point).
