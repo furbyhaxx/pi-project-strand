@@ -32,6 +32,8 @@ Strands are named knot sequences defined per project in \`.pi/project.jsonc\` an
 
 Each knot is a **persistent record**: it carries its own goals, success criteria (individually verified with evidence), an optional linked plan, resources, and a sign-off summary. Nothing is erased when a knot completes.
 
+**Advancement policy (advance_by):** each knot declares who may advance it — \`human\`, \`agent\`, and/or \`judge\`. You (the user) can always advance via \`/project:knot:advance\` as an override. When a knot's \`advance_by\` includes \`agent\`, the agent may self-advance via a deliberate **two-step** confirmation: the first \`knot:sign_off\` arms and returns the criteria checklist (it does NOT advance); after verifying every criterion with evidence, a second \`knot:sign_off\` WITH an evidence summary within the freshness window confirms and advances. Knots without \`agent\` require the human (or, later, a judge) to advance.
+
 **MVFoS (Minimum Viable Feature or Slice):** the smallest real, observable, testable unit of work. No stubs or placeholders.
 
 **Starting new work:** run \`/project:new:slice <request>\` — an interactive funnel that captures the goal + success criteria, picks a strand, and creates the slice. Load \`/skill:frs-strategy\` for quality bars per knot.

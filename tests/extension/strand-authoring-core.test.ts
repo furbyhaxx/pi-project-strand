@@ -81,3 +81,13 @@ describe("buildStrandConfigText", () => {
     expect(parsed.strands.quick.knots).toHaveLength(3);
   });
 });
+
+test("validateStrandProposal rejects bad advance_by values", () => {
+  const err = validateStrandProposal("s", [{ name: "K", focus: "f", advance_by: ["robot" as any] }], []);
+  expect(err).toMatch(/advance_by/);
+});
+
+test("buildStrandConfigText includes advance_by when present", () => {
+  const out = buildStrandConfigText("{}", "s", "d", [{ name: "K", focus: "f", advance_by: ["agent"] }]);
+  expect(parse(out).strands.s.knots[0].advance_by).toEqual(["agent"]);
+});
