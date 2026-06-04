@@ -18,6 +18,7 @@ import {
   type ResourceType,
   createInitialState,
   normalizeState,
+  isoNow,
   computeNext,
   formatProjectStatus,
   formatSliceList,
@@ -34,6 +35,7 @@ import {
   handleKnotUpdate,
   handleKnotSetPlan,
   handleKnotSignOff,
+  handleAgentSignOff,
   handleKnotFastForward,
   handleCompleteFastForward,
   handleVerifyCriterion,
@@ -133,7 +135,7 @@ async function findProjectRoot(startCwd: string): Promise<string> {
   }
 }
 
-async function loadProjectConfig(cwd: string): Promise<{ root: string; configPath: string; config: ProjectStrandConfig; strands: Record<string, StrandTemplate>; statePath: string }> {
+async function loadProjectConfig(cwd: string): Promise<{ root: string; configPath: string; config: ProjectStrandConfig; strands: Record<string, StrandTemplate>; statePath: string; signoffWindowSeconds: number }> {
   const root = await findProjectRoot(cwd);
   const configPath = join(root, ".pi", "project.jsonc");
 
@@ -153,7 +155,11 @@ async function loadProjectConfig(cwd: string): Promise<{ root: string; configPat
   };
 
   const statePath = resolve(root, merged.stateFile!);
-  return { root, configPath, config: merged, strands, statePath };
+  const signoffWindowSeconds =
+    typeof config.agent_signoff_window_seconds === "number" && config.agent_signoff_window_seconds > 0
+      ? config.agent_signoff_window_seconds
+      : 300;
+  return { root, configPath, config: merged, strands, statePath, signoffWindowSeconds };
 }
 
 async function loadState(cwd: string): Promise<{ state: ProjectState; runtime: Awaited<ReturnType<typeof loadProjectConfig>> }> {
@@ -266,6 +272,16 @@ export async function buildProjectStrandContext(cwd: string): Promise<{ text: st
       `Next up: ${computeNext(state)}`,
     ].join("\n"),
   ];
+
+  for (const slice of active) {
+    const knot = slice.strand.knots.find((k) => k.name === slice.strand.current_knot);
+    if (!knot) continue;
+    parts.push(
+      knot.advance_by.includes("agent")
+        ? `${slice.id} → ${knot.name}: agent self-advance ALLOWED (advance_by=[${knot.advance_by.join(", ")}]). Protocol: verify all criteria, then knot:sign_off (arms + returns the checklist) → knot:sign_off WITH evidence within the freshness window to confirm.`
+        : `${slice.id} → ${knot.name}: agent self-advance NOT allowed (advance_by=[${knot.advance_by.join(", ")}]). Advance via ${knot.advance_by.includes("judge") ? "the judge (Phase B) or " : ""}user /project:knot:advance ${slice.id}.`
+    );
+  }
 
   for (const slice of active.filter((s) => s.strand.pending_fast_forward)) {
     const pff = slice.strand.pending_fast_forward!;
@@ -419,7 +435,9 @@ export default function (pi: ExtensionAPI) {
           break;
         }
         case "knot:sign_off": {
-          result = await mutateState(ctx.cwd, (s) => handleKnotSignOff(s, params.slice_id ?? "", params.message ?? "", params.evidence ?? ""));
+          result = await mutateState(ctx.cwd, (s, runtime) =>
+            handleAgentSignOff(s, params.slice_id ?? "", params.message ?? "", params.evidence ?? "", isoNow(), runtime.signoffWindowSeconds)
+          );
           break;
         }
         case "knot:fast_forward": {
