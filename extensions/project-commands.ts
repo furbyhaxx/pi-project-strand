@@ -111,7 +111,7 @@ Requirements:
 1. Load /skill:brainstorming and follow it. Surface PROJECT.md Planned Features / Capabilities, project_tracker status, and relevant project_knowledge (decisions, constraints, rejected approaches) BEFORE asking design questions.
 2. Ask focused questions one at a time to establish purpose, scope, constraints, and complexity. Research (web/local) where it changes the decision; persist findings as project_knowledge entries and attach them as slice resources.
 3. Converge with the user on the slice GOAL and slice-level SUCCESS CRITERIA ("what done means").
-4. Strand selection: call ask_user_question with one single-select question. Offer each strand defined in .pi/project.jsonc (or the built-in quick/granular) as an option — each option's description states when to use it (pros/cons), and its preview shows the knot sequence with focus. Assess complexity and mark your recommended strand first with "(Recommended)".
+4. Strand selection: call ask_user_question with one single-select question. Offer each strand defined in .pi/project.jsonc (or the built-in defaults: spike, quick, deep-research, change, granular) as an option — each option's description states when to use it (pros/cons), and its preview shows the knot sequence with focus. Assess complexity and mark your recommended strand first with "(Recommended)".
 5. Create the slice: project_tracker action=slice:create with id, name, description, type, the chosen strand name, goal, and criteria (the slice-level success criteria). The slice is created status=defined with the full knot sequence pending.
 6. Do NOT start a knot here. End with a summary (goal, success criteria, chosen strand + why) and tell the user to run /project:build to activate the slice and start its first knot.
 
@@ -127,7 +127,7 @@ A strand is a SEED-ONLY template. It is snapshotted into a slice when that slice
 
 Requirements:
 1. Load context first: read .pi/project.jsonc (note the strands already defined), PROJECT.md Planned Features / Capabilities, and relevant project_knowledge. Understand the kind of work this strand is for before proposing anything.
-2. Clarify the use case ONE question at a time (optionally via ask_user_question): what kind of work the strand targets, and the intended granularity (few coarse knots vs. many fine-grained gates). Contrast with the built-in quick/granular strands so the user picks a distinct, useful shape.
+2. Clarify the use case ONE question at a time (optionally via ask_user_question): what kind of work the strand targets, and the intended granularity (few coarse knots vs. many fine-grained gates). Contrast with the built-in strands (spike, quick, deep-research, change, granular) so the user picks a distinct, useful shape.
 3. Propose an ordered knot sequence: for each knot give a short name and a one-line focus (what that knot is about / its quality bar). Present the full sequence and CONFIRM with the user before writing. Refine until the user approves.
 4. Write it: call project_strand action=define name=<strand-name> description=<when-to-use> knots=[{name, focus}, ...]. The tool validates (unique name, >=1 knot, unique knot names, every knot has a focus) and returns an in-band error if invalid — fix and retry, do not fabricate.
 5. On success, tell the user the strand is now available to /project:new:slice and summarize the knot sequence.
