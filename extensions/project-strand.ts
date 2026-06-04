@@ -20,6 +20,7 @@ const ProjectStrandParams = Type.Object(
         {
           name: Type.String({ description: "Knot name" }),
           focus: Type.String({ description: "What this knot is about / its quality bar" }),
+          advance_by: Type.Optional(Type.Array(StringEnum(["human", "agent", "judge"] as const), { description: "Who may advance this knot (default human)" })),
         },
         { additionalProperties: false }
       ),
