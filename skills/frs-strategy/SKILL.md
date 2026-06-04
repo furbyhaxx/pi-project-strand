@@ -51,7 +51,19 @@ Each knot declares an **`advance_by`** list naming who may advance it: any combi
 - **Agent self-advance is a deliberate two-phase armed confirmation.** When `advance_by` includes `agent`, the agent does **not** advance in a single step:
   1. **Arm** — the first `knot:sign_off` records an arm timestamp and returns the criteria checklist. It does **not** advance the knot.
   2. **Confirm** — after genuinely verifying every success criterion with evidence, a second `knot:sign_off` **with an evidence summary**, within the freshness window (`agent_signoff_window_seconds`, default 300s), confirms and advances. If criteria are unmet the confirm is refused (the arm is kept); if the window has lapsed, the call re-arms instead of advancing.
-- **`judge`** is parsed/accepted but enforcement is deferred (Phase B); a `judge`-only knot is advanced by the human override until then.
+- **`judge`** is enforced by an independent auditor (see the **Judge** subsection below).
+
+### Judge
+
+When `advance_by` includes `judge`, advancement is gated by an independent auditor agent that runs in its own **clean-room** pi session (no project extensions/skills beyond read-only `project_knowledge` and verification-only `bash`). The judge audits the **active knot** against the slice goal/success criteria and the knot's goals/success criteria, verifying each independently against the actual repository state rather than trusting the agent's claims.
+
+- **Configuration** (resolved **knot → strand → project**, first match wins, falling back to the current session model when unset):
+  - **`judge.model`** — a fixed judge model, `provider/model[:thinking]`.
+  - **`judge.models`** — a map of glob pattern (matched against the current session model `provider/model`) → judge model; the first matching pattern wins.
+  - **`judge.tools`** — extra tool names appended to the default judge toolset.
+- **Invocation:** the agent runs `project_tracker action=knot:judge slice_id=<id>`; the user runs `/project:knot:judge <slice>`.
+- **Outcome:** on **approve**, the judge advances the knot (marking criteria judge-verified) and records its verdict; on **reject**, it records `last_verdict` plus a rejection note on the knot and does **not** advance.
+- **Human override:** the user can always bypass the judge via `/project:knot:advance`.
 
 **Built-in defaults — human at the bookends, agent in the middle.** The five default strands gate *direction* at the start and *shipping* at the end with the human, while letting the agent run the productive middle:
 
