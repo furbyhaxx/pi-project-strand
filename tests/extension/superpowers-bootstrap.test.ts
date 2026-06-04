@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { buildProjectStrandBootstrap } from "../../extensions/superpowers-bootstrap.js";
+import { DEFAULT_STRANDS } from "../../extensions/project-tracker-core.js";
 
 describe("buildProjectStrandBootstrap", () => {
   test("prioritizes user instructions over project-strand rules", () => {
@@ -42,5 +43,14 @@ describe("buildProjectStrandBootstrap", () => {
   test("bootstrap documents the judge path", () => {
     const text = buildProjectStrandBootstrap();
     expect(text).toContain("knot:judge");
+  });
+
+  test("lists every built-in default strand (generated from DEFAULT_STRANDS, can't drift)", () => {
+    const text = buildProjectStrandBootstrap();
+    for (const name of Object.keys(DEFAULT_STRANDS)) {
+      expect(text).toContain(name);
+    }
+    // the five current defaults, explicitly
+    expect(Object.keys(DEFAULT_STRANDS)).toEqual(expect.arrayContaining(["spike", "quick", "deep-research", "change", "granular"]));
   });
 });

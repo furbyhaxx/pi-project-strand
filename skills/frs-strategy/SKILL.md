@@ -19,10 +19,13 @@ Every feature is a **slice**. Each slice follows a **strand** — a named, order
 
 | Strand | Knots | When |
 |--------|-------|------|
+| **spike** | Setup → Experiment → Decision | Throwaway experiments to choose a direction before real work |
 | **quick** | Prototype → Realization → Finalization | Simple, scoped, or smaller work |
+| **deep-research** | Preparation → DeepResearch → Synthesis → Finalization | Scoping, sourcing, analyzing, and synthesizing a research question |
+| **change** | Scope → Patch → Verify | A scoped change to something that already exists |
 | **granular** | Proof-of-Work → Alpha → Beta → Gamma → RC1 → RC2 → Release | Complex or large-scope work |
 
-Projects may define their own strands; pick the strand whose granularity matches the work.
+Projects may define their own strands; pick the strand whose granularity matches the work. (See "Advancement policy" below for each default's per-knot `advance_by` posture.)
 
 ## Slice goals vs. knot goals
 
@@ -83,7 +86,7 @@ When `advance_by` includes `judge`, advancement is gated by an independent audit
 
 ```
 **MVFoS**: [the slice being built — must be real and observable, no stubs]
-**Strand**: [e.g. quick | granular | <project-defined strand>]
+**Strand**: [e.g. spike | quick | deep-research | change | granular | <project-defined strand>]
 **Knot**: [the current knot name in that strand]
 
 **Done means**: [observable, verifiable condition — not "code is written"]

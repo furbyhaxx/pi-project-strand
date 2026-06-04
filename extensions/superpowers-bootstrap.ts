@@ -1,6 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { buildProjectStrandContext } from "./project-tracker.js";
 import { buildKnowledgeContext } from "./project-knowledge.js";
+import { DEFAULT_STRANDS } from "./project-tracker-core.js";
+
+/** Built-in default strand list, generated from DEFAULT_STRANDS so it never drifts from the code. */
+function defaultStrandsList(): string {
+  return Object.entries(DEFAULT_STRANDS)
+    .map(([name, t]) => {
+      const seq = t.knots.map((k) => k.name).join(" → ");
+      const posture = t.knots.map((k) => (k.advance_by && k.advance_by[0]) || "human").join("/");
+      return `- **${name}** — ${seq}  ·  ${t.description}  (advance_by: ${posture})`;
+    })
+    .join("\n");
+}
 
 export function buildProjectStrandBootstrap(): string {
   return `
@@ -26,9 +38,8 @@ Planning, architecture, coding, testing, documentation, QA, coordination — own
 ### FRS (Feature Realization Strand) — Development Methodology
 Every feature is a **slice** that advances through an ordered **strand** of **knots** (quality stages). **Never skip a knot without explicit user approval** (use /project:knot:fast_forward).
 
-Strands are named knot sequences defined per project in \`.pi/project.jsonc\` and snapshotted onto each slice at creation. Built-in defaults:
-- **quick** — Prototype → Realization → Finalization (small, scoped work).
-- **granular** — Proof-of-Work → Alpha → Beta → Gamma → RC1 → RC2 → Release (complex/large work).
+Strands are named knot sequences defined per project in \`.pi/project.jsonc\`; absent that, these built-in defaults apply and are snapshotted onto each slice at creation (a project's own \`strands\` override these):
+${defaultStrandsList()}
 
 Each knot is a **persistent record**: it carries its own goals, success criteria (individually verified with evidence), an optional linked plan, resources, and a sign-off summary. Nothing is erased when a knot completes.
 

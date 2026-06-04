@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-04
+
+### Fixed
+- onboarding/instructions listed only `quick` and `granular` as built-in strands (stale since the v0.5.0 expansion to five). The `superpowers-bootstrap` built-in-defaults list is now **generated from `DEFAULT_STRANDS`** (name, knot sequence, and `advance_by` posture) so it can never drift again; `frs-strategy` and the `/project:new:slice` / `/project:new:strand` command templates now list all five defaults (spike, quick, deep-research, change, granular). Added a bootstrap test asserting every `DEFAULT_STRANDS` key appears.
+
 ## [0.6.0] - 2026-06-04
 
 ### Added
