@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-04
+
+### Added
+- per-knot `advance_by` (`human`/`agent`/`judge`) authorization on strands/knots — any listed actor may advance, and the user can always override via `/project:knot:advance`. Absent/empty defaults to `["human"]`; `normalizeState` backfills it on pre-0.5.0 state files.
+- agent two-phase **armed confirmation** for self-advance (`handleAgentSignOff`): the agent's first `knot:sign_off` arms and returns the criteria checklist (does NOT advance); a second `knot:sign_off` with an evidence summary + all criteria met, within `agent_signoff_window_seconds` (default 300), confirms and advances; past the window it re-arms. Deterministic (clock injected).
+- `project_strand` `define` now accepts per-knot `advance_by` (validated against the enum).
+- `agent_signoff_window_seconds` project config (default 300); `judge` config (`provider/model:thinking`) parsed at knot/strand/project level — accepted now, enforced in Phase B (judge sub-session).
+
+### Changed
+- **Default strands expanded** from `quick`/`granular` to five generic strands — `spike`, `quick`, `deep-research`, `change`, `granular` — each carrying a per-knot `advance_by` posture ("human at the bookends, agent in the middle"; `deep-research` + `spike` run autonomously). Domain-specific strands (`automation`/`integration`) intentionally remain project-local.
+- the agent `knot:sign_off` tool action now enforces `advance_by` (previously unconditional) — by default an agent can no longer silently self-advance a knot. The human `/project:knot:advance` override is unchanged.
+
+### Fixed
+- `project_strand` no longer corrupts `.pi/project.jsonc` when invoked in parallel. It now serializes the read-modify-write via `withFileMutationQueue` (so concurrent `define` calls can't read the same base and clobber each other's strands) and writes through a per-write unique temp file (eliminating the shared `*.tmp` rename race that produced `ENOENT` + truncated/garbage JSON).
+
+### Removed
+- stray `references/extended-project.json` (a truncated terminal paste; the strand definitions now live in `DEFAULT_STRANDS`).
+
 ## [0.4.0] - 2026-06-03
 
 ### Changed — BREAKING (project strand redesign; no runtime back-compat — `/mnt/Projects` migrated once)
