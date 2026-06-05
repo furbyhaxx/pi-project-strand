@@ -23,6 +23,7 @@ describe("migrateLegacyState (Pass 1 mechanical)", () => {
     expect(migrated.project.name).toBe("EdgeOS");
     expect(migrated.milestones).toHaveLength(1);
     expect(slice.id).toBe("dns-cache");
+    expect(slice.track).toBe("main");
     expect(slice.strand.name).toBe("granular");
     expect(slice.strand.knots.map((k) => k.name)).toEqual(DEFAULT_STRANDS.granular.knots.map((k) => k.name));
   });

@@ -17,9 +17,10 @@ const LEGACY_WIDGET_KEYS = ["plan_tracker", "project_tracker"] as const;
 
 function firstActiveSlice(state: ProjectState | null): Slice | undefined {
   if (!state) return undefined;
-  return [...state.slices]
+  const active = [...state.slices]
     .filter((slice) => slice.status === "active")
-    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))[0];
+    .sort((a, b) => (a.track === b.track ? 0 : a.track === "main" ? -1 : 1) || a.priority - b.priority || a.id.localeCompare(b.id));
+  return active[0];
 }
 
 function activeKnot(slice: Slice | undefined): Knot | undefined {

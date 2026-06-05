@@ -31,6 +31,9 @@ describe("buildProjectStrandBootstrap", () => {
     expect(text).toContain("strand");
     expect(text).toContain("Strands are named knot sequences");
     expect(text).toContain("/project:new:slice");
+    expect(text).toContain("main");
+    expect(text).toContain("side");
+    expect(text).toContain("/project:slice:execute");
     expect(text).not.toContain("/project:brainstorm");
   });
 

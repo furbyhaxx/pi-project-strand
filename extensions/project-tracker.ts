@@ -12,6 +12,7 @@ import {
   type ProjectState,
   type ProjectTrackerDetails,
   type SliceStatus,
+  type SliceTrack,
   type SliceType,
   type StrandTemplate,
   type Target,
@@ -29,6 +30,7 @@ import {
   handleSliceCreate,
   handleSliceUpdate,
   handleSliceActivate,
+  handleSliceSetTrack,
   handleSliceHold,
   handleSliceSignOff,
   handleKnotStart,
@@ -97,6 +99,7 @@ const ProjectTrackerParams = Type.Object(
         "slice:create",
         "slice:update",
         "slice:activate",
+        "slice:set_track",
         "slice:hold",
         "slice:sign_off",
         "knot:start",
@@ -119,6 +122,7 @@ const ProjectTrackerParams = Type.Object(
     name: Type.Optional(Type.String({ description: "Name for slice or milestone" })),
     description: Type.Optional(Type.String({ description: "Description for slice or milestone" })),
     type: Type.Optional(StringEnum(["vertical", "horizontal"] as const, { description: "Slice type" })),
+    track: Type.Optional(StringEnum(["main", "side"] as const, { description: "Slice track (slice:create/slice:set_track)" })),
     priority: Type.Optional(Type.Integer({ description: "Slice priority" })),
     status: Type.Optional(StringEnum(["defined", "active", "on_hold", "complete"] as const, { description: "Status filter (slice:list)" })),
     strand: Type.Optional(Type.String({ description: "Strand name to seed (slice:create); must exist in project.jsonc strands" })),
@@ -131,7 +135,7 @@ const ProjectTrackerParams = Type.Object(
     index: Type.Optional(Type.Integer({ minimum: 0, description: "Criterion or resource index" })),
     evidence: Type.Optional(Type.String({ description: "Verification/sign-off evidence" })),
     message: Type.Optional(Type.String({ description: "Sign-off message (knot:sign_off, slice:sign_off)" })),
-    file_path: Type.Optional(Type.String({ description: "Plan file path (knot:set_plan)" })),
+    file_path: Type.Optional(Type.String({ description: "Plan file path (knot:set_plan); preferred .pi/project/plans/<slice-id>/<knot-slug>.md, and omitted uses that preferred path" })),
     plan_status: Type.Optional(StringEnum(["linked", "complete"] as const, { description: "Plan status (knot:set_plan)" })),
     notes: Type.Optional(Type.String({ description: "Notes (annotate) or fast-forward instructions (knot:fast_forward)" })),
     notes_mode: Type.Optional(StringEnum(["set", "append"] as const, { description: "annotate: set (replace) or append" })),
@@ -237,11 +241,13 @@ function trackerVerbAndTarget(args: Partial<ProjectTrackerInput> | undefined): {
     case "slice:get":
       return { verb: "Project Slice", target: `get${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:create":
-      return { verb: "Project Slice", target: `create${args?.id ? ` · ${args.id}` : ""}${args?.strand ? ` · ${args.strand}` : ""}` };
+      return { verb: "Project Slice", target: `create${args?.id ? ` · ${args.id}` : ""}${args?.track ? ` · ${args.track}` : ""}${args?.strand ? ` · ${args.strand}` : ""}` };
     case "slice:update":
       return { verb: "Project Slice", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:activate":
       return { verb: "Project Slice", target: `activate${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "slice:set_track":
+      return { verb: "Project Slice", target: `track${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.track ? ` → ${args.track}` : ""}` };
     case "slice:hold":
       return { verb: "Project Slice", target: `hold${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:sign_off":
@@ -326,13 +332,16 @@ function sliceLine(theme: Parameters<typeof fg>[0], slice: ProjectState["slices"
 }
 
 function projectStatusBody(theme: Parameters<typeof fg>[0], state: ProjectState): string[] {
-  const active = state.slices.filter((slice) => slice.status === "active");
+  const active = [...state.slices]
+    .filter((slice) => slice.status === "active")
+    .sort((a, b) => (a.track === b.track ? 0 : a.track === "main" ? -1 : 1) || a.priority - b.priority || a.id.localeCompare(b.id));
   if (active.length === 0) return [];
   return active.map((slice) => sliceLine(theme, slice));
 }
 
 function sliceDetailBody(theme: Parameters<typeof fg>[0], slice: ProjectState["slices"][number]): string[] {
   const lines: string[] = [];
+  lines.push(`${fg(theme, "muted", "track:")} ${fg(theme, "toolOutput", slice.track)}`);
   lines.push(`${fg(theme, "muted", "goal:")} ${fg(theme, "toolOutput", slice.goal)}`);
   if (slice.success_criteria.length > 0) {
     lines.push(fg(theme, "muted", `criteria (${criteriaProgressText(slice.success_criteria)}):`));
@@ -410,6 +419,7 @@ function renderProjectTrackerResult(
       const slice = sliceById(state, args?.id);
       const summary = slice ? `Created ${slice.id} · ${slice.strand.name} · ${slice.status}` : line;
       const body = slice ? [
+        `${fg(theme, "muted", "track:")} ${fg(theme, "toolOutput", slice.track)}`,
         `${fg(theme, "muted", "goal:")} ${fg(theme, "toolOutput", slice.goal)}`,
         `${fg(theme, "muted", "criteria:")} ${fg(theme, "toolOutput", String(slice.success_criteria.length))}`,
         `${fg(theme, "muted", "knots:")} ${fg(theme, "toolOutput", slice.strand.knots.map((k) => k.name).join(" → "))}`,
@@ -421,6 +431,7 @@ function renderProjectTrackerResult(
       return renderFrameResult(theme, context, fg(theme, "muted", line || `Updated ${args?.slice_id ?? "slice"}`), changed.length ? [fg(theme, "muted", `changed: ${changed.join(", ")}`)] : [], { cap: 4 });
     }
     case "slice:activate":
+    case "slice:set_track":
     case "slice:hold":
       return renderFrameResult(theme, context, fg(theme, "muted", line || "Updated slice"));
     case "slice:sign_off": {
@@ -547,26 +558,32 @@ async function promptForEvidence(ctx: ExtensionCommandContext, label: string): P
   return ctx.ui.editor(label, "Validated criteria and sign-off basis:\n");
 }
 
-export async function buildProjectStrandContext(cwd: string): Promise<{ text: string; activeSliceId?: string } | undefined> {
+function orderActiveSlices(state: ProjectState): ProjectState["slices"] {
+  return [...state.slices]
+    .filter((slice) => slice.status === "active")
+    .sort((a, b) => (a.track === b.track ? 0 : a.track === "main" ? -1 : 1) || a.priority - b.priority || a.id.localeCompare(b.id));
+}
+
+function contextSliceSummary(slice: ProjectState["slices"][number]): string {
+  const knot = slice.strand.knots.find((candidate) => candidate.name === slice.strand.current_knot);
+  const prog = knot ? `${knot.success_criteria.filter((c) => c.met).length}/${knot.success_criteria.length}` : "0/0";
+  return `${slice.id} (${slice.strand.name}) → ${slice.strand.current_knot ?? "no knot"} (${prog} criteria)`;
+}
+
+export async function buildProjectStrandContext(cwd: string): Promise<{ text: string; activeSliceIds: string[] } | undefined> {
   const { state, runtime } = await loadState(cwd);
   if (!(await exists(runtime.statePath)) && !(await exists(runtime.configPath))) return undefined;
 
-  const active = state.slices.filter((s) => s.status === "active");
-  const activeSliceId = active[0]?.id;
-  const summary = active.length > 0
-    ? active
-        .map((s) => {
-          const knot = s.strand.knots.find((k) => k.name === s.strand.current_knot);
-          const prog = knot ? `${knot.success_criteria.filter((c) => c.met).length}/${knot.success_criteria.length}` : "0/0";
-          return `${s.id} (${s.strand.name}) → ${s.strand.current_knot ?? "no knot"} (${prog} criteria)`;
-        })
-        .join(" · ")
-    : "none";
+  const active = orderActiveSlices(state);
+  const activeSliceIds = active.map((slice) => slice.id);
+  const mainQuest = active.find((slice) => slice.track === "main");
+  const sideQuests = active.filter((slice) => slice.track === "side");
 
   const parts: string[] = [
     [
       `[pi-project-strand] ${state.project.name}`,
-      `Active: ${summary}`,
+      `Main quest: ${mainQuest ? contextSliceSummary(mainQuest) : "none"}`,
+      `Active side quests: ${sideQuests.length > 0 ? sideQuests.map(contextSliceSummary).join(" · ") : "none"}`,
       `Next up: ${computeNext(state)}`,
     ].join("\n"),
   ];
@@ -612,7 +629,7 @@ export async function buildProjectStrandContext(cwd: string): Promise<{ text: st
     );
   }
 
-  return { text: parts.join("\n\n"), activeSliceId };
+  return { text: parts.join("\n\n"), activeSliceIds };
 }
 
 /** A state file is legacy if any slice predates the strand model (no `strand` field). */
@@ -700,6 +717,7 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       "Use project_tracker for persistent project state across sessions: slices, knots, criteria, plan links, resources, milestones, and advancement/sign-off.",
       "Use plan_tracker only for the ad-hoc execution checklist currently being worked in this session; do not use it as a substitute for project_tracker lifecycle state.",
+      "Use project_tracker action=slice:set_track to classify slices as main or side; only one main-track slice may be active at a time.",
     ],
     parameters: ProjectTrackerParams,
     renderShell: "self",
@@ -741,6 +759,7 @@ export default function (pi: ExtensionAPI) {
                 name: params.name ?? "",
                 description: params.description ?? "",
                 type: (params.type as SliceType) ?? "vertical",
+                track: (params.track as SliceTrack | undefined) ?? "main",
                 priority: params.priority,
                 goal: params.goal ?? "",
                 criteria: params.criteria ?? [],
@@ -762,6 +781,10 @@ export default function (pi: ExtensionAPI) {
               criteria: params.criteria,
             })
           );
+          break;
+        }
+        case "slice:set_track": {
+          result = await mutateState(ctx.cwd, (s) => handleSliceSetTrack(s, params.slice_id, (params.track as SliceTrack | undefined) ?? "main"));
           break;
         }
         case "slice:activate": {

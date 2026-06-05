@@ -118,6 +118,17 @@ describe("knowledge store core", () => {
     expect(result.text).not.toContain("Unrelated note");
   });
 
+  test("context honors ordered slice_ids so main entries surface before side entries", () => {
+    let store = createEmptyStore();
+    store = handleAdd(store, { category: "howto", title: "Main quest howto", content: ".", slice_id: "main-quest" }).store;
+    store = handleAdd(store, { category: "note", title: "Side quest note", content: ".", slice_id: "side-quest" }).store;
+    store = handleAdd(store, { category: "warning", title: "Always first", content: "watch out" }).store;
+
+    const result = handleContext(store, { slice_ids: ["main-quest", "side-quest"], limit: 10 });
+    expect(result.text.indexOf("Always first")).toBeLessThan(result.text.indexOf("Main quest howto"));
+    expect(result.text.indexOf("Main quest howto")).toBeLessThan(result.text.indexOf("Side quest note"));
+  });
+
   test("graph traverses relations bidirectionally up to depth", () => {
     let store = createEmptyStore();
     store = handleAdd(store, { category: "decision", title: "A", content: "." }).store;

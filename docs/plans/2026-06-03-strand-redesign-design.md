@@ -242,7 +242,7 @@ This lands at **20 actions** sharing **~22 params**, down from ~24/27.
 ### 4.3 Knot mutations
 - `knot:start` — `slice_id, knot (name), goals[], criteria[]`. Validates the knot exists in `strand.knots`, is `pending`, and no other knot is `active`. Sets it `active`, fills `goals` + `success_criteria` (from `criteria[]`, `met=false`), `started_at`, `strand.current_knot`.
 - `knot:update` — `slice_id` + any of `goals? / title?` for the active knot.
-- `knot:set_plan` — `slice_id, file_path, plan_status` (`linked|complete`) for the active knot's `plan`.
+- `knot:set_plan` — `slice_id, file_path?, plan_status` (`linked|complete`) for the active knot's `plan`; omitted `file_path` uses the preferred `.pi/project/plans/<slice-id>/<knot-slug>.md` convention, while explicit paths remain allowed.
 - `knot:sign_off` — `slice_id, message, evidence`. Marks the active knot `signed_off` (+ `completed_at`), advances `strand.current_knot` to the next `pending` knot (or completes the slice). Returns a structured error if any criterion is unmet. **Replaces** today's `advanceKnotForSignoff`.
 - `knot:fast_forward` — `slice_id, knot (target), notes (instructions)`. Sets `strand.pending_fast_forward`.
 - `knot:complete_fast_forward` — `slice_id, evidence`. Marks squashed knots `fast_forwarded` with synthesized evidence, activates the target knot, clears `pending_fast_forward`. (Name kept for continuity with the existing action.)

@@ -4,8 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-05
+
+### Added
+- main/side slice tracks on `project_tracker` slices, plus the single-active-main invariant enforced in `slice:activate`, `knot:start`, and the new `slice:set_track` action.
+- `/project:slice:execute <slice-id>` for targeted execution of one explicit slice, including main-quest hold-and-switch guidance and side-quest routing.
+- multi-slice knowledge-context surfacing: bootstrap now passes all active slice ids so `project_knowledge` can prioritize main-quest entries before side-quest entries.
+
 ### Changed
 - `ask_user_question`, `plan_tracker`, `project_tracker`, `project_strand`, and `project_knowledge` now render compact self-framed TUI transcript blocks with action-specific summaries, shared status glyphs, width-safe truncation, and focused body output.
+- Preferred implementation plan storage moved to `.pi/project/plans/<slice-id>/<knot-slug>.md`: `knot:start`, `/project:build`, `/project:slice:execute`, bootstrap guidance, README, and planning skills now point agents there while still allowing explicit project-specific plan paths.
+- `project_tracker action=knot:set_plan` can now omit `file_path` to link the preferred active-knot plan path automatically instead of forcing agents to spell it out every time, because obviously path boilerplate was the real enemy.
+- bare `/project:build`, `computeNext`, bootstrap context, widget summaries, docs, and the FRS skill are now explicitly main-quest-focused while still surfacing active side quests and their knowledge.
 
 ## [0.6.2] - 2026-06-05
 

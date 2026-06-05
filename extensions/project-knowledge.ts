@@ -127,6 +127,7 @@ const ProjectKnowledgeParams = Type.Object({
   content:       Type.Optional(Type.String({ description: "Entry content (markdown)" })),
   tags:          Type.Optional(Type.Array(Type.String(), { description: "Tags/keywords" })),
   slice_id:      Type.Optional(Type.String({ description: "Link to slice id" })),
+  slice_ids:     Type.Optional(Type.Array(Type.String(), { description: "Ordered slice ids for multi-slice context scoping" })),
   knot_scope:    Type.Optional(Type.String({ description: "Lifecycle anchor e.g. rust-workspace/PoW" })),
   path_triggers: Type.Optional(Type.Array(Type.String(), { description: "Glob patterns that trigger auto-surface" })),
 
@@ -199,7 +200,7 @@ function knowledgeTarget(args: Partial<ProjectKnowledgeInput> | undefined): stri
       return `list${filters.length ? ` · ${filters.join(" · ")}` : ""}`;
     }
     case "context": {
-      const filters = [args?.slice_id ? `slice=${args.slice_id}` : "", args?.path ? `path=${semanticTruncate(args.path, 32)}` : ""].filter(Boolean);
+      const filters = [args?.slice_ids?.length ? `slices=${args.slice_ids.join(",")}` : args?.slice_id ? `slice=${args.slice_id}` : "", args?.path ? `path=${semanticTruncate(args.path, 32)}` : ""].filter(Boolean);
       return `context${filters.length ? ` · ${filters.join(" · ")}` : ""}`;
     }
     default:
@@ -248,13 +249,19 @@ function conciseMutationSummary(action: string, line: string, stats: string | un
 
 export async function buildKnowledgeContext(
   cwd: string,
-  sliceId?: string,
+  sliceIds?: string[] | string,
   path?: string
 ): Promise<string> {
   try {
     const { store } = await loadStore(cwd);
     if (store.entries.length === 0) return "";
-    const result = handleContext(store, { slice_id: sliceId, path, limit: 6 });
+    const orderedSliceIds = Array.isArray(sliceIds) ? sliceIds : sliceIds ? [sliceIds] : undefined;
+    const result = handleContext(store, {
+      slice_id: orderedSliceIds?.[0],
+      slice_ids: orderedSliceIds,
+      path,
+      limit: 6,
+    });
     return result.text;
   } catch {
     return "";
@@ -368,6 +375,7 @@ export default function (pi: ExtensionAPI) {
           const { store } = await loadStore(ctx.cwd);
           result = handleContext(store, {
             slice_id: params.slice_id,
+            slice_ids: params.slice_ids,
             path: params.path,
             limit: params.limit,
           } satisfies ContextInput);

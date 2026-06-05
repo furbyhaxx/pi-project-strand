@@ -14,6 +14,7 @@ const audit: ProjectAudit = {
   ],
   projectStateExists: true,
   projectKnowledgeExists: false,
+  projectPlansDirExists: true,
   topLevelEntries: ["PROJECT.md", "src", "package.json"],
 };
 
@@ -31,6 +32,7 @@ describe("project command registration", () => {
       "project:new:slice",
       "project:new:strand",
       "project:build",
+      "project:slice:execute",
       "project:implement",
       "project:change",
     ]);
@@ -44,6 +46,7 @@ describe("project command message builders", () => {
     expect(text).toContain("present: PROJECT.md");
     expect(text).toContain("missing: VISION.md");
     expect(text).toContain("project_knowledge state: missing");
+    expect(text).toContain("preferred project plans dir: present");
   });
 
   test("onboard command requires real project files and knowledge seeding", () => {
@@ -60,6 +63,8 @@ describe("project command message builders", () => {
     expect(msg).toContain('name="/project:new:slice"');
     expect(msg).toContain("/skill:brainstorming");
     expect(msg).toContain("ask_user_question");
+    expect(msg).toContain("main vs side");
+    expect(msg).toContain("track");
     expect(msg).toContain("strand");
     expect(msg).toContain("slice:create");
     expect(msg).toContain("defined");
@@ -74,9 +79,21 @@ describe("project command message builders", () => {
     const text = buildProjectCommandMessage("build", "", audit);
     expect(text).toContain("/project:build");
     expect(text).toContain("Read project_tracker status");
+    expect(text).toContain("main quest only");
+    expect(text).toContain("Never pick up a side quest");
     expect(text).toContain("advance_by");
     expect(text).toContain("project_tracker action=knot:sign_off");
-    expect(text).toContain("Active slice with an active knot + linked plan");
+    expect(text).toContain("active knot + linked plan");
+    expect(text).toContain(".pi/project/plans/<slice-id>/<knot-slug>.md");
+  });
+
+  test("slice:execute command is targeted and track-aware", () => {
+    const text = buildProjectCommandMessage("slice:execute", "docs-research", audit);
+    expect(text).toContain('/project:slice:execute');
+    expect(text).toContain('docs-research');
+    expect(text).toContain('hold-and-switch');
+    expect(text).toContain('project_tracker action=slice:get slice_id=<id>');
+    expect(text).toContain('/project:slice:advance');
   });
 
   test("change command enforces dual-write architecture updates", () => {

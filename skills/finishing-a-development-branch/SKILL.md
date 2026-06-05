@@ -46,7 +46,7 @@ Stop. Don't proceed to Step 1.5.
 Read the plan's `Knot Done Criteria` section:
 
 ```bash
-grep -A 10 "Knot Done Criteria" docs/superpowers/plans/*.md
+grep -R -A 10 "Knot Done Criteria" .pi/project/plans/
 ```
 
 For each criterion:

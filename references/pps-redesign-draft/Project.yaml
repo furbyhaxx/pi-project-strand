@@ -1,0 +1,72 @@
+# Project.yaml located in each project's root directory
+# Project.yaml is inspired by Cargo.toml and it's mechanics
+# schema version
+version: 1.0.0
+# Info about the root project if any
+project:
+  id: uuid
+  name: pi-wookie
+  git:
+    release_branch: main
+    dev_branch: dev
+    remote: https://github.com/furbyhaxx/pi-wookiee.git
+  description: |
+    An opiniated, smart and well designed set of extensions for the pi mono coding agent.
+  goals:
+    - "foundational tools like: file_read, file_write, file_edit, find, grep, shell"
+    - "background shells, scheduled shells/commands"
+  features:
+    - title: "Tool `file_read`"
+      description: "Smart read tool that reads: text files, images with smart resizing, directory listing, documents, etc"
+      status: in-progress #enum(planned|in-progress|implemented|discarded)
+  # custom instructions that are injected into pi's system prompt in addition to the auto generated ones under a <project><instructions></instructions></project> alongside the other important metadata for the currently active project, where for members we combine the toplevel 
+  instructions: |
+    Custom instructions
+  options:
+    knots:
+      signoff_by: ["human", "judge"] # enum(human, agent, judge)
+      agent_signoff_window: "5m"
+    judge:
+      timeout: "10m"
+      models:
+        "*": "github-copilot/claude-opus-4.8:medium"
+# if this section is defined it's a workspace
+# workspace can define defaults for it's members which allows them to completely omit most of the settings
+workspace:
+  id: uuid
+  name: pi-wookie
+  git: 
+    release_branch: main
+    dev_branch: dev
+    remote: https://github.com/furbyhaxx/pi-wookiee.git
+  description: |
+    An opiniated, smart and well designed set of extensions for the pi mono coding agent.
+  goals:
+    - "foundational tools like: file_read, file_write, file_edit, find, grep, shell"
+    - "background shells, scheduled shells/commands"
+  features:
+    - title: "Tool `file_read`"
+      description: "Smart read tool that reads: text files, images with smart resizing, directory listing, documents, etc"
+      status: in-progress #enum(planned|in-progress|implemented|discarded)
+  # custom instructions that are injected into pi's system prompt in addition to the auto generated ones under a <project><instructions></instructions></project> alongside the other important metadata for the currently active project, where for members we combine the toplevel
+  instructions: |
+    Custom instructions
+  options:
+    knots:
+      signoff_by: ["human", "judge"] # enum(human, agent, judge)
+      agent_signoff_window: "5m"
+    judge:
+      timeout: "10m"
+      models:
+        "*": "github-copilot/claude-opus-4.8:medium"
+  
+  # members of the project
+  # list of paths/details where each must contain an own Project.yaml
+  members:
+    # if there is a root member
+    - .
+    # a simple member
+    - ./subcomponent
+    # a rich member, vcs: git marks it as a git submodule
+    - path: ./submodule  
+      type: submodule # default is dir/directory

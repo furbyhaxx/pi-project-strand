@@ -1,0 +1,32 @@
+version: 1.0.0
+flow:
+  name: spike
+  # the version of the flow template definition
+  version: 1.0.0
+  description: |
+    Throwaway experiments to explore and decide on a direction before committing to real implementation.
+  # optional options
+  # if undefined, they inherit from Project.yaml
+  command: true # exposes this flow as custom user command (e.g. `/project:flow:spike)
+  options:
+    knots:
+      signoff_by: ["human", "judge"] # enum(human, agent, judge)
+      agent_signoff_window: "5m"
+    judge:
+      timeout: "10m"
+      models:
+        "*": "github-copilot/claude-opus-4.8:medium"
+  knots:
+    - name: string
+      goal: string
+      focus: string
+      success_criteria: string[]
+      # optional
+      signoff_by: ["human", "judge"] # enum(human, agent, judge)
+      # optional
+      agent_signoff_window: "5m"
+      # optional
+      judge:
+        timeout: "10m"
+        models:
+          "*": "github-copilot/claude-opus-4.8:medium"

@@ -1,12 +1,14 @@
 import { describe, expect, test } from "vitest";
 import {
   DEFAULT_STRANDS,
+  preferredPlanPath,
   seedStrand,
   createInitialState,
   normalizeState,
   handleSliceCreate,
   handleSliceUpdate,
   handleSliceActivate,
+  handleSliceSetTrack,
   handleSliceHold,
   handleSliceSignOff,
   handleKnotStart,
@@ -107,6 +109,7 @@ describe("slice lifecycle", () => {
     const state = withSlice();
     const slice = state.slices[0]!;
     expect(slice.status).toBe("defined");
+    expect(slice.track).toBe("main");
     expect(slice.goal).toContain("DNS latency");
     expect(slice.success_criteria).toEqual([
       { text: "p99 < 1ms", met: false },
@@ -129,6 +132,20 @@ describe("slice lifecycle", () => {
     expect(noGoal.error).toBe("missing fields");
   });
 
+  test("create honors explicit side track", () => {
+    const created = handleSliceCreate(freshState(), {
+      id: "docs-research",
+      name: "Docs research",
+      description: "Gather docs",
+      type: "vertical",
+      track: "side",
+      goal: "Collect relevant docs",
+      criteria: ["sources linked"],
+      strand: "quick",
+    }, quick);
+    expect(created.state.slices[0]!.track).toBe("side");
+  });
+
   test("update edits goal and priority; activate and hold switch status", () => {
     let state = withSlice();
     state = handleSliceUpdate(state, "dns-cache", { goal: "New goal", priority: 50 }).state;
@@ -147,6 +164,47 @@ describe("slice lifecycle", () => {
       { text: "new crit a", met: false },
       { text: "new crit b", met: false },
     ]);
+  });
+
+  test("single-active-main is enforced while side quests may run in parallel", () => {
+    let state = withSlice();
+    state = handleSliceCreate(state, {
+      id: "api-cleanup",
+      name: "API cleanup",
+      description: "Fix the API",
+      type: "vertical",
+      goal: "Reduce API noise",
+      criteria: ["public API trimmed"],
+      strand: "quick",
+    }, quick).state;
+    state = handleSliceActivate(state, "dns-cache").state;
+    expect(handleSliceActivate(state, "api-cleanup").error).toBe("main active");
+
+    state = handleSliceSetTrack(state, "api-cleanup", "side").state;
+    expect(handleSliceActivate(state, "api-cleanup").error).toBeUndefined();
+  });
+
+  test("slice:set_track blocks creating a second active main but allows inactive retagging", () => {
+    let state = withSlice();
+    state = handleSliceCreate(state, {
+      id: "docs-research",
+      name: "Docs research",
+      description: "Gather docs",
+      type: "vertical",
+      track: "side",
+      goal: "Collect docs",
+      criteria: ["sources linked"],
+      strand: "quick",
+    }, quick).state;
+    state = handleSliceActivate(state, "dns-cache").state;
+    state = handleSliceActivate(state, "docs-research").state;
+
+    const blocked = handleSliceSetTrack(state, "docs-research", "main");
+    expect(blocked.error).toBe("main active");
+
+    const inactive = handleSliceSetTrack(handleSliceHold(state, "docs-research").state, "docs-research", "main");
+    expect(inactive.error).toBeUndefined();
+    expect(inactive.state.slices.find((slice) => slice.id === "docs-research")!.track).toBe("main");
   });
 });
 
@@ -174,17 +232,41 @@ describe("knot start/update/plan", () => {
     expect(handleKnotStart(state, { slice_id: "dns-cache", knot: "Realization", goals: [], criteria: ["c"] }).error).toBe("active knot exists");
   });
 
-  test("update edits goals/title; set_plan links and completes the active knot plan", () => {
+  test("knot:start enforces the active-main invariant while side quests remain allowed", () => {
+    let state = withSlice();
+    state = handleSliceCreate(state, {
+      id: "api-cleanup",
+      name: "API cleanup",
+      description: "Fix the API",
+      type: "vertical",
+      goal: "Reduce API noise",
+      criteria: ["public API trimmed"],
+      strand: "quick",
+    }, quick).state;
+    state = handleSliceActivate(state, "dns-cache").state;
+
+    expect(handleKnotStart(state, { slice_id: "api-cleanup", knot: "Prototype", goals: [], criteria: ["c"] }).error).toBe("main active");
+
+    state = handleSliceSetTrack(state, "api-cleanup", "side").state;
+    expect(handleKnotStart(state, { slice_id: "api-cleanup", knot: "Prototype", goals: [], criteria: ["c"] }).error).toBeUndefined();
+  });
+
+  test("preferredPlanPath stores plans under the project tracker hierarchy", () => {
+    expect(preferredPlanPath("dns-cache", "Prototype")).toBe(".pi/project/plans/dns-cache/prototype.md");
+    expect(preferredPlanPath("DNS Cache", "Proof-of-Work")).toBe(".pi/project/plans/dns-cache/proof-of-work.md");
+  });
+
+  test("update edits goals/title; set_plan defaults to preferred path but allows overrides", () => {
     let state = handleKnotStart(handleSliceActivate(withSlice(), "dns-cache").state, {
       slice_id: "dns-cache", knot: "Prototype", goals: ["g"], criteria: ["c"],
     }).state;
     state = handleKnotUpdate(state, "dns-cache", { goals: ["g1", "g2"], title: "LRU spike" }).state;
     expect(state.slices[0]!.strand.knots[0]!.goals).toEqual(["g1", "g2"]);
     expect(state.slices[0]!.strand.knots[0]!.title).toBe("LRU spike");
-    state = handleKnotSetPlan(state, "dns-cache", "docs/plans/p.md", "linked").state;
-    expect(state.slices[0]!.strand.knots[0]!.plan).toEqual({ path: "docs/plans/p.md", status: "linked" });
+    state = handleKnotSetPlan(state, "dns-cache", undefined, "linked").state;
+    expect(state.slices[0]!.strand.knots[0]!.plan).toEqual({ path: ".pi/project/plans/dns-cache/prototype.md", status: "linked" });
     state = handleKnotSetPlan(state, "dns-cache", "docs/plans/p.md", "complete").state;
-    expect(state.slices[0]!.strand.knots[0]!.plan!.status).toBe("complete");
+    expect(state.slices[0]!.strand.knots[0]!.plan).toEqual({ path: "docs/plans/p.md", status: "complete" });
   });
 });
 
@@ -364,6 +446,59 @@ describe("computeNext", () => {
     const next = computeNext(state);
     expect(next).toContain("judge sign-off");
     expect(next).toContain("project_tracker action=knot:judge slice_id=dns-cache");
+  });
+
+  test("ignores side quests for the main headline next step", () => {
+    let state = withSlice();
+    state = handleSliceCreate(state, {
+      id: "docs-research",
+      name: "Docs research",
+      description: "Gather docs",
+      type: "vertical",
+      track: "side",
+      goal: "Collect docs",
+      criteria: ["sources linked"],
+      strand: "quick",
+    }, quick).state;
+    state = handleSliceActivate(state, "docs-research").state;
+    state = handleKnotStart(state, { slice_id: "docs-research", knot: "Prototype", goals: [], criteria: ["c"] }).state;
+
+    expect(computeNext(state)).toContain("Activate dns-cache");
+
+    state = handleSliceSetTrack(state, "dns-cache", "side").state;
+    expect(computeNext(state)).toContain("Use /project:slice:execute <id>");
+  });
+});
+
+describe("normalizeState", () => {
+  test("defaults missing track to main and grandfathers legacy multi-active mains", () => {
+    const state = normalizeState({
+      project: { name: "EdgeOS", description: "router", updated_at: "2026-06-05T00:00:00.000Z" },
+      milestones: [],
+      slices: [
+        { ...withSlice().slices[0]!, status: "active", started_at: null },
+        {
+          ...handleSliceCreate(freshState(), {
+            id: "api-cleanup",
+            name: "API cleanup",
+            description: "Fix the API",
+            type: "vertical",
+            goal: "Reduce API noise",
+            criteria: ["public API trimmed"],
+            strand: "quick",
+          }, quick).state.slices[0]!,
+          status: "active",
+          started_at: null,
+        },
+      ].map((slice) => {
+        const clone = JSON.parse(JSON.stringify(slice));
+        delete clone.track;
+        return clone;
+      }) as any,
+    } as any, { project: { name: "EdgeOS" } }, "fallback");
+
+    expect(state.slices.every((slice) => slice.track === "main")).toBe(true);
+    expect(state.slices.filter((slice) => slice.status === "active")).toHaveLength(2);
   });
 });
 

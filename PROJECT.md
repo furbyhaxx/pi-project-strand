@@ -15,6 +15,7 @@ It is the difference between a stateless session that forgets everything when cl
 | **FRS** (Feature Realization Strand) | A graduated quality progression: PoW → Alpha → Beta → Gamma → RC1 → RC2 → Release |
 | **MVFoS** (Minimum Viable Feature or Slice) | The smallest real, observable, testable unit of work — no stubs, no placeholders |
 | **Slice** | An independent vertical or horizontal feature unit that advances through FRS knots |
+| **Track** | The slice's durable questline: `main` for the primary spine, `side` for parallel optional work |
 | **Knot** | A quality stage within a slice's FRS progression |
 | **Project Memory** | Persistent knowledge graph (`project_knowledge`) + slice/knot tracker (`project_tracker`) |
 
@@ -27,10 +28,12 @@ This is the high-level destination map for pi-project-strand. It tells future AI
 | Required project-file onboarding | Available | `/project:onboard` creates or repairs `PROJECT.md`, `VISION.md`, `ARCHITECTURE.md`, and `AGENTS.md` through an LLM-driven workflow. |
 | High-level planned feature map in `PROJECT.md` | In progress | Every onboarded project must expose the intended end-state feature/capability list so agents understand what the user wants long-term. |
 | FRS slice/knot tracking | Available | `project_tracker` persists slices, current knots, criteria, linked plans, milestones, and annotations. |
+| Main/side quest tracks | Available | Slices carry a durable `track` (`main` or `side`); only one main-track slice may be active at a time while side quests may run in parallel. |
+| Preferred plan artifact storage | Available | Active-knot plans should live under `.pi/project/plans/<slice-id>/<knot-slug>.md` by convention, while `knot:set_plan` can still link any project-specific path. |
 | Persistent project knowledge graph | Available | `project_knowledge` stores decisions, rejections, constraints, warnings, howtos, conventions, and notes with relations and path/slice scoping. |
 | Rich slice/knot annotations | Available | `project_tracker slice:annotate` and `knot:annotate` preserve design notes and implementation context. |
-| Project context bootstrap injection | Available | `superpowers-bootstrap.ts` injects FRS foundations, collaboration roles, active slice state, and relevant knowledge each turn. |
-| `/project:*` workflow commands | Available | `/project:onboard`, `/project:brainstorm`, `/project:build`, `/project:implement`, and `/project:change` trigger deterministic audits plus LLM workflows. |
+| Project context bootstrap injection | Available | `superpowers-bootstrap.ts` injects FRS foundations, the main quest, active side quests, and relevant knowledge each turn. |
+| `/project:*` workflow commands | Available | `/project:onboard`, `/project:new:slice`, `/project:new:strand`, `/project:build`, `/project:slice:execute`, `/project:implement`, and `/project:change` trigger deterministic audits plus LLM workflows. |
 | Project change consistency workflow | Available | `/project:change` guides updates across docs, tracker state, and knowledge graph entries. |
 | Better project-file audits | Planned | Detect placeholder sections, missing planned-feature lists, stale status, and contradiction between `PROJECT.md`, tracker state, and knowledge entries. |
 | Generic FRS skill | Planned | Remove remaining project-specific assumptions from `frs-strategy` so the package is cleanly reusable outside EdgeOS-style projects. |
@@ -74,8 +77,10 @@ Registered by `extensions/project-commands.ts`. Commands compute deterministic p
 | Command | Purpose |
 |---------|---------|
 | `/project:onboard` | Interactive wizard to create required project files and initialize tracking |
-| `/project:brainstorm` | Start a guided brainstorming session |
-| `/project:build` | Resume or start implementing the current active slice |
+| `/project:new:slice` | Interactive funnel to specify a slice, choose a strand, and create tracker state |
+| `/project:new:strand` | Interactively design and save a custom strand template |
+| `/project:build` | Resume or start implementing the current main-track slice |
+| `/project:slice:execute` | Resume or start implementing one explicit slice or side quest |
 | `/project:implement` | Alias for `/project:build` |
 | `/project:change` | Interactively change project docs, architecture, plans, or tracking structure |
 
@@ -95,7 +100,8 @@ See `references/required-project-files.md` for templates.
 |------|---------|
 | `.pi/project/state.json` | Slice/knot tracker state |
 | `.pi/project/knowledge.json` | Knowledge graph entries |
-| `.pi/project/knowledge.json.tmp` | Atomic write scratch file (ephemeral) |
+| `.pi/project/plans/<slice-id>/<knot-slug>.md` | Preferred active-knot implementation plan artifacts |
+| `.pi/project/*.tmp` | Atomic write scratch files (ephemeral) |
 
 ## Current State
 

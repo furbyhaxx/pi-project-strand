@@ -1,4 +1,5 @@
 export type SliceType = "vertical" | "horizontal";
+export type SliceTrack = "main" | "side";
 export type SliceStatus = "defined" | "active" | "on_hold" | "complete";
 export type KnotStatus = "pending" | "active" | "signed_off" | "fast_forwarded";
 export type PlanStatus = "linked" | "complete";
@@ -89,6 +90,7 @@ export interface Slice {
   name: string;
   description: string;
   type: SliceType;
+  track: SliceTrack;
   priority: number;
   status: SliceStatus;
   goal: string;
@@ -127,6 +129,8 @@ export interface ActionResult {
   error?: string;
 }
 
+export const PREFERRED_PLAN_ROOT = ".pi/project/plans";
+
 export interface StrandKnotTemplate {
   name: string;
   focus: string;
@@ -154,6 +158,18 @@ export interface ProjectConfig {
 
 export function isoNow(): string {
   return new Date().toISOString();
+}
+
+function slugifyPlanSegment(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "item";
+}
+
+export function preferredPlanPath(sliceId: string, knotName: string): string {
+  return `${PREFERRED_PLAN_ROOT}/${slugifyPlanSegment(sliceId)}/${slugifyPlanSegment(knotName)}.md`;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +274,20 @@ function compareSlices(a: Slice, b: Slice): number {
   return a.id.localeCompare(b.id);
 }
 
+function trackRank(track: SliceTrack): number {
+  return track === "main" ? 0 : 1;
+}
+
+function compareTrackedSlices(a: Slice, b: Slice): number {
+  const rankDiff = trackRank(a.track) - trackRank(b.track);
+  if (rankDiff !== 0) return rankDiff;
+  return compareSlices(a, b);
+}
+
+function normalizeTrack(track: SliceTrack | undefined | null): SliceTrack {
+  return track === "side" ? "side" : "main";
+}
+
 function normalizeKnot(k: Knot): Knot {
   return {
     ...k,
@@ -280,7 +310,7 @@ export function normalizeState(state: ProjectState, config: ProjectConfig = {}, 
       updated_at: base.project?.updated_at || isoNow(),
     },
     slices: [...(base.slices ?? [])]
-      .map((s) => (s.strand ? { ...s, strand: { ...s.strand, knots: (s.strand.knots ?? []).map(normalizeKnot) } } : s))
+      .map((s) => (s.strand ? { ...s, track: normalizeTrack((s as Partial<Slice>).track), strand: { ...s.strand, knots: (s.strand.knots ?? []).map(normalizeKnot) } } : { ...s, track: normalizeTrack((s as Partial<Slice>).track) }))
       .sort(compareSlices),
     milestones: [...(base.milestones ?? [])],
   };
@@ -331,10 +361,25 @@ export interface SliceCreateInput {
   name: string;
   description: string;
   type: SliceType;
+  track?: SliceTrack;
   priority?: number;
   goal: string;
   criteria: string[];
   strand: string;
+}
+
+/** Returns an error tuple if making `slice` an active main would violate the
+ *  single-active-main invariant; otherwise null. */
+export function assertCanActivateMain(state: ProjectState, slice: Slice): { error: string; text: string } | null {
+  if (slice.track !== "main") return null;
+  const conflict = state.slices
+    .filter((other) => other.id !== slice.id && other.track === "main" && other.status === "active")
+    .sort(compareSlices)[0];
+  if (!conflict) return null;
+  return {
+    error: "main active",
+    text: `Error: main quest ${conflict.id} is already active — hold or finish it first`,
+  };
 }
 
 export function handleSliceCreate(state: ProjectState, input: SliceCreateInput, template: StrandTemplate): ActionResult {
@@ -354,6 +399,7 @@ export function handleSliceCreate(state: ProjectState, input: SliceCreateInput, 
     name: input.name.trim(),
     description: input.description.trim(),
     type: input.type,
+    track: input.track ?? "main",
     priority: input.priority ?? nextPriority(current),
     status: "defined",
     goal: input.goal.trim(),
@@ -368,7 +414,7 @@ export function handleSliceCreate(state: ProjectState, input: SliceCreateInput, 
     strand: seedStrand(input.strand, template),
   });
 
-  return { text: `Created slice ${input.id} on strand "${input.strand}"`, state: touch(normalizeState(current)) };
+  return { text: `Created slice ${input.id} on ${input.track ?? "main"} track using strand "${input.strand}"`, state: touch(normalizeState(current)) };
 }
 
 export interface SliceUpdateInput {
@@ -398,9 +444,31 @@ export function handleSliceActivate(state: ProjectState, sliceId: string | undef
   const slice = findSlice(current, sliceId);
   if (!slice) return { text: `Error: unknown slice ${sliceId ?? "<missing>"}`, state, error: "unknown slice" };
   if (slice.status === "complete") return { text: `Error: slice ${slice.id} is already complete`, state, error: "already complete" };
+  const invariant = assertCanActivateMain(current, slice);
+  if (invariant) return { text: invariant.text, state, error: invariant.error };
   slice.status = "active";
   if (!slice.started_at) slice.started_at = isoNow();
   return { text: `Activated slice ${slice.id}`, state: touch(normalizeState(current)) };
+}
+
+export function handleSliceSetTrack(state: ProjectState, sliceId: string | undefined, track: SliceTrack): ActionResult {
+  const current = cloneState(state);
+  const slice = findSlice(current, sliceId);
+  if (!slice) return { text: `Error: unknown slice ${sliceId ?? "<missing>"}`, state, error: "unknown slice" };
+
+  const nextTrack = normalizeTrack(track);
+  if (slice.status === "active" && nextTrack === "main") {
+    const previousTrack = slice.track;
+    slice.track = "main";
+    const invariant = assertCanActivateMain(current, slice);
+    if (invariant) {
+      slice.track = previousTrack;
+      return { text: invariant.text, state, error: invariant.error };
+    }
+  }
+
+  slice.track = nextTrack;
+  return { text: `Set slice ${slice.id} to ${slice.track} track`, state: touch(normalizeState(current)) };
 }
 
 export function handleSliceHold(state: ProjectState, sliceId: string | undefined): ActionResult {
@@ -464,6 +532,8 @@ export function handleKnotStart(state: ProjectState, input: KnotStartInput): Act
   if (!input.criteria || input.criteria.length === 0) {
     return { text: "Error: at least one success criterion is required", state, error: "missing criteria" };
   }
+  const invariant = assertCanActivateMain(current, slice);
+  if (invariant) return { text: invariant.text, state, error: invariant.error };
 
   knot.status = "active";
   knot.goals = [...(input.goals ?? [])];
@@ -473,7 +543,10 @@ export function handleKnotStart(state: ProjectState, input: KnotStartInput): Act
   slice.status = "active";
   if (!slice.started_at) slice.started_at = isoNow();
 
-  return { text: `Started ${slice.id} → ${knot.name}`, state: touch(normalizeState(current)) };
+  return {
+    text: `Started ${slice.id} → ${knot.name}\nPreferred plan path: ${preferredPlanPath(slice.id, knot.name)}`,
+    state: touch(normalizeState(current)),
+  };
 }
 
 export interface KnotUpdateInput {
@@ -492,14 +565,14 @@ export function handleKnotUpdate(state: ProjectState, sliceId: string | undefine
   return { text: `Updated knot ${slice.id} → ${knot.name}`, state: touch(normalizeState(current)) };
 }
 
-export function handleKnotSetPlan(state: ProjectState, sliceId: string | undefined, filePath: string, status: PlanStatus): ActionResult {
+export function handleKnotSetPlan(state: ProjectState, sliceId: string | undefined, filePath: string | undefined, status: PlanStatus): ActionResult {
   const current = cloneState(state);
   const slice = findSlice(current, sliceId);
   if (!slice) return { text: `Error: unknown slice ${sliceId ?? "<missing>"}`, state, error: "unknown slice" };
   const knot = getActiveKnot(slice);
   if (!knot) return { text: `Error: slice ${slice.id} has no active knot`, state, error: "no active knot" };
-  if (!filePath?.trim()) return { text: "Error: file_path is required", state, error: "missing file_path" };
-  knot.plan = { path: filePath.trim(), status };
+  const path = filePath?.trim() || preferredPlanPath(slice.id, knot.name);
+  knot.plan = { path, status };
   return { text: `Plan ${status} for ${slice.id} → ${knot.name}: ${knot.plan.path}`, state: touch(normalizeState(current)) };
 }
 
@@ -767,32 +840,49 @@ export function handleMilestoneAdd(state: ProjectState, input: MilestoneInput): 
 // ---------------------------------------------------------------------------
 
 export function computeNext(state: ProjectState): string {
-  const active = state.slices.filter((s) => s.status === "active").sort(compareSlices);
+  const activeMain = state.slices.filter((s) => s.track === "main" && s.status === "active").sort(compareSlices);
+  const mainQuest = activeMain[0];
 
-  const ff = active.find((s) => s.strand.pending_fast_forward);
-  if (ff) return `Execute fast-forward plan for ${ff.id} → ${ff.strand.pending_fast_forward!.target_knot}`;
+  if (mainQuest?.strand.pending_fast_forward) {
+    return `Execute fast-forward plan for ${mainQuest.id} → ${mainQuest.strand.pending_fast_forward.target_knot}`;
+  }
 
-  for (const slice of active) {
-    const knot = getActiveKnot(slice);
+  if (mainQuest) {
+    const knot = getActiveKnot(mainQuest);
     if (knot && knot.success_criteria.some((c) => !c.met)) {
-      return `Continue ${slice.id} → ${knot.name} (${criteriaProgress(knot.success_criteria)} criteria met)`;
+      return `Continue ${mainQuest.id} → ${knot.name} (${criteriaProgress(knot.success_criteria)} criteria met)`;
     }
-  }
-  for (const slice of active) {
-    const knot = getActiveKnot(slice);
     if (knot && knot.success_criteria.every((c) => c.met)) {
-      return formatKnotAdvancementNext(slice, knot);
+      return formatKnotAdvancementNext(mainQuest, knot);
     }
-  }
-  for (const slice of active) {
-    if (slice.strand.current_knot) continue;
-    const pending = firstPendingKnot(slice);
-    if (pending) return `Start ${slice.id} → ${pending.name}`;
-    return `${slice.id} is ready for slice sign-off (/project:slice:advance ${slice.id})`;
+    if (!mainQuest.strand.current_knot) {
+      const pending = firstPendingKnot(mainQuest);
+      if (pending) return `Start ${mainQuest.id} → ${pending.name}`;
+      return `${mainQuest.id} is ready for slice sign-off (/project:slice:advance ${mainQuest.id})`;
+    }
   }
 
-  const defined = state.slices.filter((s) => s.status === "defined").sort(compareSlices);
-  if (defined.length > 0) return `Activate ${defined[0]!.id} (${defined[0]!.type}, priority ${defined[0]!.priority})`;
+  const definedMain = state.slices.filter((s) => s.track === "main" && s.status === "defined").sort(compareSlices);
+  if (definedMain.length > 0) return `Activate ${definedMain[0]!.id} (main quest, ${definedMain[0]!.type}, priority ${definedMain[0]!.priority})`;
+
+  const activeSide = state.slices.filter((s) => s.track === "side" && s.status === "active").sort(compareSlices);
+  if (activeSide.length > 0) {
+    const summary = activeSide
+      .map((slice) => {
+        if (slice.strand.pending_fast_forward) return `${slice.id}[⚡ ${slice.strand.pending_fast_forward.target_knot}]`;
+        const knot = getActiveKnot(slice);
+        if (knot) return `${slice.id}[${knot.name} ${criteriaProgress(knot.success_criteria)}]`;
+        const pending = firstPendingKnot(slice);
+        return `${slice.id}[${pending ? pending.name : "slice sign-off"}]`;
+      })
+      .join(", ");
+    return `No active main quest. Active side quests: ${summary}. Use /project:slice:execute <id> to continue one.`;
+  }
+
+  const definedSide = state.slices.filter((s) => s.track === "side" && s.status === "defined").sort(compareSlices);
+  if (definedSide.length > 0) {
+    return `No main quest queued. Side quests defined: ${definedSide.map((slice) => slice.id).join(", ")}. Use /project:slice:execute <id> to start one.`;
+  }
 
   return "No obvious next slice.";
 }
@@ -833,13 +923,22 @@ export function handleNext(state: ProjectState): ActionResult {
 
 export function formatProjectStatus(state: ProjectState): string {
   const by = (s: SliceStatus) => state.slices.filter((x) => x.status === s);
+  const activeMain = state.slices.filter((slice) => slice.track === "main" && slice.status === "active").sort(compareSlices);
+  const activeSide = state.slices.filter((slice) => slice.track === "side" && slice.status === "active").sort(compareSlices);
   const lines: string[] = [];
   lines.push(state.project.name + (state.project.description ? ` — ${state.project.description}` : ""));
   lines.push(`Slices: ${state.slices.length} total (${by("active").length} active, ${by("defined").length} defined, ${by("on_hold").length} on hold, ${by("complete").length} complete)`);
-  const active = by("active").sort(compareSlices);
-  if (active.length > 0) {
-    lines.push("", "Active slices:");
-    for (const slice of active) {
+  if (activeMain.length > 0) {
+    lines.push("", "Main quest:");
+    for (const slice of activeMain) {
+      const knot = getActiveKnot(slice);
+      const prog = knot ? ` [${knot.name} ${criteriaProgress(knot.success_criteria)}]` : ` [${slice.strand.current_knot ?? "no knot"}]`;
+      lines.push(`- ${slice.id} (${slice.strand.name})${prog}${slice.strand.pending_fast_forward ? " ⚡FF" : ""}`);
+    }
+  }
+  if (activeSide.length > 0) {
+    lines.push("", "Active side quests:");
+    for (const slice of activeSide) {
       const knot = getActiveKnot(slice);
       const prog = knot ? ` [${knot.name} ${criteriaProgress(knot.success_criteria)}]` : ` [${slice.strand.current_knot ?? "no knot"}]`;
       lines.push(`- ${slice.id} (${slice.strand.name})${prog}${slice.strand.pending_fast_forward ? " ⚡FF" : ""}`);
@@ -852,7 +951,7 @@ export function formatSliceList(state: ProjectState, status?: SliceStatus): stri
   const slices = (status ? state.slices.filter((s) => s.status === status) : state.slices).sort(compareSlices);
   if (slices.length === 0) return status ? `No slices with status ${status}.` : "No slices defined.";
   return slices
-    .map((s) => `- [${s.priority}] ${s.id} (${s.type}, ${s.strand.name}) — ${s.status}, knot=${s.strand.current_knot ?? "none"}`)
+    .map((s) => `- [${s.priority}] ${s.id} (${s.type}, ${s.track}, ${s.strand.name}) — ${s.status}, knot=${s.strand.current_knot ?? "none"}`)
     .join("\n");
 }
 
@@ -860,7 +959,7 @@ export function formatSliceDetail(slice: Slice): string {
   const lines: string[] = [];
   lines.push(`${slice.id} — ${slice.name}`);
   lines.push(slice.description);
-  lines.push(`type=${slice.type}, priority=${slice.priority}, status=${slice.status}, strand=${slice.strand.name}`);
+  lines.push(`type=${slice.type}, track=${slice.track}, priority=${slice.priority}, status=${slice.status}, strand=${slice.strand.name}`);
   lines.push(`goal: ${slice.goal}`);
   if (slice.success_criteria.length > 0) {
     lines.push(`success criteria (${criteriaProgress(slice.success_criteria)}):`);
@@ -900,5 +999,5 @@ export function formatCriteria(slice: Slice): string {
 }
 
 export function getActiveSliceIds(state: ProjectState): string[] {
-  return state.slices.filter((s) => s.status === "active").map((s) => s.id);
+  return state.slices.filter((s) => s.status === "active").sort(compareTrackedSlices).map((s) => s.id);
 }

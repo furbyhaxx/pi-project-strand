@@ -1,0 +1,68 @@
+{
+  // serde_yass project configuration for pi-project-strand.
+  // Strands below mirror the built-in v0.6.1 defaults so they are explicit and
+  // editable. Each knot's `advance_by` controls who may advance it:
+  //   "human" (gated by you), "agent" (two-step self sign-off), "judge" (clean-room audit).
+  // Removing the entire `strands` block falls back to these same built-in defaults.
+
+  "project": {
+    "name": "serde_yass",
+    "description": "Rust library for YASS (YAML Sane Subset): deterministic YAML-derived config with serde integration, a JSON-like Value model, and optional format-preserving editing."
+  },
+
+  // Agent self sign-off freshness window (seconds) and judge timeout (seconds).
+  "agent_signoff_window_seconds": 300,
+  "judge_timeout_seconds": 600,
+
+  "strands": {
+    "spike": {
+      "description": "Throwaway experiments to explore and decide on a direction before committing to real implementation.",
+      "knots": [
+        { "name": "Setup", "focus": "Frame the question/hypothesis, define what a useful answer looks like, and prepare a disposable experiment environment.", "advance_by": ["agent"] },
+        { "name": "Experiment", "focus": "Run the fastest experiments that produce real signal; optimize for learning, not production quality.", "advance_by": ["agent"] },
+        { "name": "Decision", "focus": "Capture findings and make a clear recommendation; record what to keep, discard, or follow up with a real slice.", "advance_by": ["human"] }
+      ]
+    },
+
+    "quick": {
+      "description": "Small, well-scoped slices that need a compact path from proof to implementation.",
+      "knots": [
+        { "name": "Prototype", "focus": "Establish a minimal, observable proof of the slice direction and de-risk the core approach.", "advance_by": ["human"] },
+        { "name": "Realization", "focus": "Implement the slice completely enough to satisfy its success criteria with real behavior and tests.", "advance_by": ["agent"] },
+        { "name": "Finalization", "focus": "Verify, document, clean up, and prepare the slice for sign-off.", "advance_by": ["human"] }
+      ]
+    },
+
+    "deep-research": {
+      "description": "Substantial research slices where a broad question must be scoped, sourced, analyzed, and synthesized into a cited answer.",
+      "knots": [
+        { "name": "Preparation", "focus": "Broad source scouting and scope shaping: collect high-value sources, record decision points, and frame the research question.", "advance_by": ["agent"] },
+        { "name": "DeepResearch", "focus": "Targeted deep analysis of the selected sources: extract evidence, compare claims, and probe for gaps and contradictions.", "advance_by": ["agent"] },
+        { "name": "Synthesis", "focus": "Aggregate research outputs into the relevant findings: reconcile conflicts, separate signal from noise, and structure conclusions.", "advance_by": ["agent"] },
+        { "name": "Finalization", "focus": "Produce the final answer/report package with citations, reproducibility notes, and a confidence assessment.", "advance_by": ["agent"] }
+      ]
+    },
+
+    "change": {
+      "description": "A scoped change to something that already exists: a targeted edit to existing components, patches, or configuration.",
+      "knots": [
+        { "name": "Scope", "focus": "Pin down exactly what changes, why, the blast radius, and how the change will be verified.", "advance_by": ["human"] },
+        { "name": "Patch", "focus": "Make the focused change with minimal collateral impact and clear, reviewable diffs.", "advance_by": ["agent"] },
+        { "name": "Verify", "focus": "Confirm the change works and nothing relevant regressed, with evidence appropriate to the change.", "advance_by": ["human"] }
+      ]
+    },
+
+    "granular": {
+      "description": "Complex or high-risk slices that benefit from multiple quality gates before release.",
+      "knots": [
+        { "name": "Proof-of-Work", "focus": "Demonstrate feasibility, identify constraints, and prove the core work can be done.", "advance_by": ["human"] },
+        { "name": "Alpha", "focus": "Build the first functional implementation covering the main path with known gaps explicitly noted.", "advance_by": ["agent"] },
+        { "name": "Beta", "focus": "Harden behavior, cover important edge cases, and validate against realistic usage.", "advance_by": ["agent"] },
+        { "name": "Gamma", "focus": "Stabilize the slice, resolve remaining major issues, and prepare release-candidate quality.", "advance_by": ["agent"] },
+        { "name": "RC1", "focus": "Run release-candidate validation, catch regressions, and verify readiness against success criteria.", "advance_by": ["agent"] },
+        { "name": "RC2", "focus": "Perform final regression checks and polish after RC1 fixes, with no known critical blockers.", "advance_by": ["human"] },
+        { "name": "Release", "focus": "Finalize documentation, evidence, cleanup, and sign-off for production-ready completion.", "advance_by": ["human"] }
+      ]
+    }
+  }
+}
