@@ -6,6 +6,7 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 export type FrameStatus = "success" | "warning" | "error";
 
 export interface ToolRenderContextLike {
+  args?: unknown;
   expanded?: boolean;
   isError?: boolean;
   isPartial?: boolean;
@@ -54,6 +55,18 @@ export function component(lines: string[]): Component {
   };
 }
 
+export function liveComponent(renderLines: (width: number) => string[]): Component {
+  return {
+    render(width: number): string[] {
+      const lines = renderLines(width);
+      return Number.isFinite(width) && width >= 0
+        ? lines.map((line) => truncateToWidth(line, width))
+        : lines;
+    },
+    invalidate() {},
+  };
+}
+
 function stateOf(context?: ToolRenderContextLike): Record<string, unknown> {
   if (!context) return {};
   if (!context.state) context.state = {};
@@ -94,10 +107,7 @@ function statusBullet(theme: Theme, context?: ToolRenderContextLike): string {
 
 export function markFrameStatus(context: ToolRenderContextLike | undefined, status: FrameStatus): void {
   const state = stateOf(context);
-  if (state[RESULT_STATUS_KEY] !== status) {
-    state[RESULT_STATUS_KEY] = status;
-    context?.invalidate?.();
-  }
+  state[RESULT_STATUS_KEY] = status;
 }
 
 export function semanticTruncate(value: string, max = 64): string {
@@ -148,10 +158,12 @@ export function renderFrameCall(
   target?: string,
   reason?: string
 ): Component {
-  const targetText = target ? `${fg(theme, "toolTitle", bold(theme, verb))}(${fg(theme, "accent", target)})` : fg(theme, "toolTitle", bold(theme, verb));
-  const lines = [`${statusBullet(theme, context)} ${targetText}`];
-  if (reason?.trim()) lines.push(`  ${fg(theme, "muted", INTENT)} ${fg(theme, "muted", reason.trim())}`);
-  return component(lines);
+  return liveComponent(() => {
+    const targetText = target ? `${fg(theme, "toolTitle", bold(theme, verb))}(${fg(theme, "accent", target)})` : fg(theme, "toolTitle", bold(theme, verb));
+    const lines = [`${statusBullet(theme, context)} ${targetText}`];
+    if (reason?.trim()) lines.push(`  ${fg(theme, "muted", INTENT)} ${fg(theme, "muted", reason.trim())}`);
+    return lines;
+  });
 }
 
 export function renderFrameResult(
@@ -163,12 +175,14 @@ export function renderFrameResult(
 ): Component {
   const status = options.status ?? "success";
   markFrameStatus(context, status);
-  const connectorColor = status === "error" ? "error" : status === "warning" ? "warning" : "muted";
-  const lines = [`  ${fg(theme, connectorColor, CONNECTOR)}  ${summary}`];
-  for (const line of collapseHead(body, theme, context?.expanded, options.cap ?? 15)) {
-    lines.push(`${BODY_INDENT}${line}`);
-  }
-  return component(lines);
+  return liveComponent(() => {
+    const connectorColor = status === "error" ? "error" : status === "warning" ? "warning" : "muted";
+    const lines = [`  ${fg(theme, connectorColor, CONNECTOR)}  ${summary}`];
+    for (const line of collapseHead(body, theme, context?.expanded, options.cap ?? 15)) {
+      lines.push(`${BODY_INDENT}${line}`);
+    }
+    return lines;
+  });
 }
 
 export function outputLines(theme: Theme, text: string): string[] {

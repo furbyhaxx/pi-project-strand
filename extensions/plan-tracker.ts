@@ -10,7 +10,6 @@
 
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
 import { Type, type Static } from "typebox";
 import {
   type Task,
@@ -20,7 +19,6 @@ import {
   handleUpdate,
   handleStatus,
   handleClear,
-  formatWidgetData,
   reconstructFromBranch,
 } from "./plan-tracker-core.js";
 import {
@@ -33,6 +31,10 @@ import {
   textContent,
   type ToolRenderContextLike,
 } from "./tui-render.js";
+import {
+  setProgressWidgetTasks,
+  updateProgressWidget,
+} from "./progress-widget.js";
 
 const PlanTrackerParams = Type.Object({
   action: StringEnum(["init", "update", "status", "clear"] as const, {
@@ -93,27 +95,6 @@ function taskSummary(tasks: Task[]): { complete: number; inProgress: number; pen
   };
 }
 
-function renderWidgetText(tasks: Task[], theme: Theme): string {
-  const data = formatWidgetData(tasks);
-  if (data.total === 0) return "";
-
-  const icons = data.icons
-    .map((icon) => {
-      switch (icon) {
-        case "✓":
-          return theme.fg("success", "✓");
-        case "→":
-          return theme.fg("warning", "→");
-        default:
-          return theme.fg("dim", "○");
-      }
-    })
-    .join("");
-
-  const currentName = data.currentName ? `  ${data.currentName}` : "";
-  return `${theme.fg("muted", "Tasks:")} ${icons} ${theme.fg("muted", `(${data.complete}/${data.total})`)}${currentName}`;
-}
-
 export default function (pi: ExtensionAPI) {
   let tasks: Task[] = [];
 
@@ -122,14 +103,8 @@ export default function (pi: ExtensionAPI) {
   };
 
   const updateWidget = (ctx: ExtensionContext) => {
-    if (!ctx.hasUI) return;
-    if (tasks.length === 0) {
-      ctx.ui.setWidget("plan_tracker", undefined);
-    } else {
-      ctx.ui.setWidget("plan_tracker", (_tui, theme) => {
-        return new Text(renderWidgetText(tasks, theme), 0, 0);
-      });
-    }
+    setProgressWidgetTasks(tasks);
+    updateProgressWidget(ctx);
   };
 
   // Reconstruct state + widget on session events
@@ -149,7 +124,12 @@ export default function (pi: ExtensionAPI) {
     name: "plan_tracker",
     label: "Plan Tracker",
     description:
-      "Track implementation plan progress. Actions: init (set task list), update (change task status), status (show current state), clear (remove plan).",
+      "Track progress on the ad-hoc execution plan currently being worked: the active knot plan, a written implementation checklist, or the current teammate-local work queue. Use this for short-lived in-progress tasks for the current session. Do not use it for persistent slice/knot/project lifecycle state — that belongs in project_tracker. Actions: init (set task list), update (change task status), status (show current state), clear (remove plan).",
+    promptSnippet: "Track progress on the current ad-hoc execution plan or working checklist for this session.",
+    promptGuidelines: [
+      "Use plan_tracker for the ad-hoc execution plan currently being worked in this session: the active knot plan, a written checklist, or the immediate task queue.",
+      "Use project_tracker for persistent slice, knot, criteria, plan-link, and milestone state across the whole project; do not use plan_tracker as a substitute for project progress.",
+    ],
     parameters: PlanTrackerParams,
     renderShell: "self",
 
@@ -208,7 +188,7 @@ export default function (pi: ExtensionAPI) {
     },
 
     renderCall(args, theme, context) {
-      return renderFrameCall(theme, context as ToolRenderContextLike, "Plan", planTarget(args));
+      return renderFrameCall(theme, context as ToolRenderContextLike, "Ad-hoc Plan", planTarget(args));
     },
 
     renderResult(result, _options, theme, context) {
