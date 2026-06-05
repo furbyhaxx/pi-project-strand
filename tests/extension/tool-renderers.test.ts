@@ -47,7 +47,7 @@ describe("tool renderers", () => {
     expect(tool.renderShell).toBe("self");
 
     const args = { action: "init", tasks: ["Audit renderers", "Add frames"] };
-    expect(render(tool.renderCall(args, theme, context(args)))[0]).toBe("● Plan(init · 2 tasks)");
+    expect(render(tool.renderCall(args, theme, context(args)))[0]).toBe("● Ad-hoc Plan(init · 2 tasks)");
 
     const result = {
       content: [{ type: "text", text: "Plan initialized with 2 tasks." }],
@@ -128,7 +128,7 @@ describe("tool renderers", () => {
     expect(tool.renderShell).toBe("self");
 
     const args = { action: "knot:start", slice_id: "dns-cache", knot: "Prototype" };
-    expect(render(tool.renderCall(args, theme, context(args)))[0]).toBe("● Knot(start · dns-cache → Prototype)");
+    expect(render(tool.renderCall(args, theme, context(args)))[0]).toBe("● Project Knot(start · dns-cache → Prototype)");
 
     let state = normalizeState(createInitialState({ project: { name: "EdgeOS", description: "router" } }, "fallback"));
     state = handleSliceCreate(state, {

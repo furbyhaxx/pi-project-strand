@@ -67,6 +67,11 @@ Every project should have these files. If any are missing, flag it and offer \`/
 - Define each knot's goals + success_criteria at knot:start; verify_criterion with evidence as work progresses.
 - After all active-knot criteria are verified, follow \`advance_by\`: \`agent\` → two-step \`project_tracker action=knot:sign_off\`, \`judge\` → \`project_tracker action=knot:judge\`, \`human\` → ask the user for \`/project:knot:advance\`; finalize slices with \`/project:slice:advance\`.
 
+**\`plan_tracker\` tool — current ad-hoc execution plan only:**
+- Use this only for the short-lived task checklist you are actively working right now in this session: the current knot's implementation plan, a teammate-local execution checklist, or the current "do these next" queue.
+- Keep it aligned with the real implementation steps in flight; clear or re-init it when the active plan changes.
+- Never use \`plan_tracker\` as a substitute for persistent project state. If it must survive across sessions as project progress, it belongs in \`project_tracker\`.
+
 ### Skill Routing
 Load the relevant skill before acting — don't guess or improvise when a skill exists:
 - New feature work → \`/project:new:slice\` (interactive funnel: goal, success criteria, strand)

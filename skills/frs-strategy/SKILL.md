@@ -76,6 +76,12 @@ When `advance_by` includes `judge`, advancement is gated by an independent audit
 
 ## Lifecycle commands
 
+### Tracking split — use the right tool
+
+- **`project_tracker`** = persistent project lifecycle state across sessions: slices, knots, criteria, linked plan files, resources, milestones, advancement.
+- **`plan_tracker`** = the ad-hoc execution checklist for the work currently in progress in this session: the active knot plan, the current implementation pass, or a teammate-local task queue.
+- If the information should still matter when the current ad-hoc plan is cleared, it belongs in `project_tracker`, not `plan_tracker`.
+
 - **`/project:new:slice <request>`** — interactive funnel that captures the slice goal + success criteria, picks a strand, and creates the slice (replaces the old brainstorm entry point).
 - **`project_tracker action=knot:sign_off`** — agent self-advance path for knots whose `advance_by` includes `agent`: first call arms, second call within the freshness window confirms with evidence.
 - **`project_tracker action=knot:judge` / `/project:knot:judge`** — judge path for knots whose `advance_by` includes `judge`.

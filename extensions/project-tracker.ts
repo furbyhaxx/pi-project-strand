@@ -1,7 +1,6 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
 import { dirname, join, resolve, basename } from "node:path";
 import { mkdir, readFile, rename, writeFile, access } from "node:fs/promises";
 import { parse } from "jsonc-parser";
@@ -68,6 +67,10 @@ import {
   textContent,
   type ToolRenderContextLike,
 } from "./tui-render.js";
+import {
+  setProgressWidgetProjectState,
+  updateProgressWidget,
+} from "./progress-widget.js";
 
 const DEFAULTS = { stateFile: ".pi/project/state.json" } as const;
 
@@ -222,13 +225,6 @@ async function mutateState(
   });
 }
 
-function renderProjectWidgetText(state: ProjectState): string {
-  const active = state.slices.filter((s) => s.status === "active").slice(0, 3);
-  if (active.length === 0) return `${state.project.name}: no active slices`;
-  const summary = active.map((s) => `${s.id}[${s.strand.current_knot ?? "-"}]`).join(" · ");
-  return `${state.project.name}: ${summary}`;
-}
-
 function trackerVerbAndTarget(args: Partial<ProjectTrackerInput> | undefined): { verb: string; target: string } {
   const action = args?.action ?? "status";
   switch (action) {
@@ -237,27 +233,27 @@ function trackerVerbAndTarget(args: Partial<ProjectTrackerInput> | undefined): {
     case "next":
       return { verb: "Project", target: "next" };
     case "slice:list":
-      return { verb: "Slice", target: `list${args?.status ? ` · ${args.status}` : ""}` };
+      return { verb: "Project Slice", target: `list${args?.status ? ` · ${args.status}` : ""}` };
     case "slice:get":
-      return { verb: "Slice", target: `get${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Slice", target: `get${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:create":
-      return { verb: "Slice", target: `create${args?.id ? ` · ${args.id}` : ""}${args?.strand ? ` · ${args.strand}` : ""}` };
+      return { verb: "Project Slice", target: `create${args?.id ? ` · ${args.id}` : ""}${args?.strand ? ` · ${args.strand}` : ""}` };
     case "slice:update":
-      return { verb: "Slice", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Slice", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:activate":
-      return { verb: "Slice", target: `activate${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Slice", target: `activate${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:hold":
-      return { verb: "Slice", target: `hold${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Slice", target: `hold${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "slice:sign_off":
-      return { verb: "Slice", target: `sign-off${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Slice", target: `sign-off${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "knot:start":
-      return { verb: "Knot", target: `start${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.knot ? ` → ${args.knot}` : ""}` };
+      return { verb: "Project Knot", target: `start${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.knot ? ` → ${args.knot}` : ""}` };
     case "knot:update":
-      return { verb: "Knot", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Knot", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "knot:set_plan":
-      return { verb: "Knot", target: `plan${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Knot", target: `plan${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "knot:sign_off":
-      return { verb: "Knot", target: `sign-off${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+      return { verb: "Project Knot", target: `sign-off${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
     case "knot:fast_forward":
       return { verb: "FastForward", target: `${args?.slice_id ?? "slice"}${args?.knot ? ` → ${args.knot}` : ""}` };
     case "knot:complete_fast_forward":
@@ -503,14 +499,15 @@ function renderProjectTrackerResult(
 }
 
 async function updateWidget(ctx: ExtensionContext): Promise<void> {
-  if (!ctx.hasUI) return;
   const { runtime } = await loadState(ctx.cwd);
   if (!(await exists(runtime.statePath))) {
-    ctx.ui.setWidget("project_tracker", undefined);
+    setProgressWidgetProjectState(null);
+    updateProgressWidget(ctx);
     return;
   }
   const { state } = await loadState(ctx.cwd);
-  ctx.ui.setWidget("project_tracker", (_tui, _theme) => new Text(renderProjectWidgetText(state), 0, 0));
+  setProgressWidgetProjectState(state);
+  updateProgressWidget(ctx);
 }
 
 function formatDashboard(state: ProjectState): string {
@@ -698,7 +695,12 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "project_tracker",
     label: "Project Tracker",
-    description: "Persistent, project-scoped FRS tracking. Slices follow a named strand of durable knots; query and mutate slices, knots, success criteria, plans, resources, and milestones.",
+    description: "Persistent, project-scoped FRS tracking. Use this for durable project state across sessions: slices, knots, success criteria, linked plan files, resources, milestones, and advancement/sign-off. Do not use it for the short-lived task checklist of the current implementation pass — that belongs in plan_tracker.",
+    promptSnippet: "Track persistent project progress across slices, knots, criteria, linked plans, and milestones.",
+    promptGuidelines: [
+      "Use project_tracker for persistent project state across sessions: slices, knots, criteria, plan links, resources, milestones, and advancement/sign-off.",
+      "Use plan_tracker only for the ad-hoc execution checklist currently being worked in this session; do not use it as a substitute for project_tracker lifecycle state.",
+    ],
     parameters: ProjectTrackerParams,
     renderShell: "self",
     async execute(_toolCallId, params: ProjectTrackerInput, _signal, _onUpdate, ctx) {
