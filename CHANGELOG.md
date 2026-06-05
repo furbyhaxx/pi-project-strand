@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- `ask_user_question`, `plan_tracker`, `project_tracker`, `project_strand`, and `project_knowledge` now render compact self-framed TUI transcript blocks with action-specific summaries, shared status glyphs, width-safe truncation, and focused body output.
+
 ## [0.6.2] - 2026-06-05
 
 ### Added

@@ -23,6 +23,16 @@ import {
   formatWidgetData,
   reconstructFromBranch,
 } from "./plan-tracker-core.js";
+import {
+  fg,
+  firstLine,
+  outputLines,
+  plural,
+  renderFrameCall,
+  renderFrameResult,
+  textContent,
+  type ToolRenderContextLike,
+} from "./tui-render.js";
 
 const PlanTrackerParams = Type.Object({
   action: StringEnum(["init", "update", "status", "clear"] as const, {
@@ -47,6 +57,41 @@ const PlanTrackerParams = Type.Object({
 });
 
 export type PlanTrackerInput = Static<typeof PlanTrackerParams>;
+
+function planTarget(args: Partial<PlanTrackerInput> | undefined): string {
+  const action = args?.action ?? "status";
+  switch (action) {
+    case "init":
+      return `init${args?.tasks ? ` · ${plural(args.tasks.length, "task")}` : ""}`;
+    case "update":
+      return `update${args?.index !== undefined ? ` · [${args.index}]` : ""}${args?.status ? ` → ${args.status}` : ""}`;
+    default:
+      return action;
+  }
+}
+
+function taskIcon(status: Task["status"], theme: Theme): string {
+  switch (status) {
+    case "complete":
+      return fg(theme, "success", "✓");
+    case "in_progress":
+      return fg(theme, "warning", "→");
+    default:
+      return fg(theme, "dim", "○");
+  }
+}
+
+function taskLine(theme: Theme, task: Task, index: number): string {
+  return `${taskIcon(task.status, theme)} ${fg(theme, "accent", `[${index}]`)} ${fg(theme, "toolOutput", task.name)}`;
+}
+
+function taskSummary(tasks: Task[]): { complete: number; inProgress: number; pending: number } {
+  return {
+    complete: tasks.filter((t) => t.status === "complete").length,
+    inProgress: tasks.filter((t) => t.status === "in_progress").length,
+    pending: tasks.filter((t) => t.status === "pending").length,
+  };
+}
 
 function renderWidgetText(tasks: Task[], theme: Theme): string {
   const data = formatWidgetData(tasks);
@@ -106,6 +151,7 @@ export default function (pi: ExtensionAPI) {
     description:
       "Track implementation plan progress. Actions: init (set task list), update (change task status), status (show current state), clear (remove plan).",
     parameters: PlanTrackerParams,
+    renderShell: "self",
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       let result;
@@ -161,73 +207,66 @@ export default function (pi: ExtensionAPI) {
       };
     },
 
-    renderCall(args, theme) {
-      let text = theme.fg("toolTitle", theme.bold("plan_tracker "));
-      text += theme.fg("muted", args.action);
-      if (args.action === "update" && args.index !== undefined) {
-        text += ` ${theme.fg("accent", `[${args.index}]`)}`;
-        if (args.status) text += ` → ${theme.fg("dim", args.status)}`;
-      }
-      if (args.action === "init" && args.tasks) {
-        text += ` ${theme.fg("dim", `(${args.tasks.length} tasks)`)}`;
-      }
-      return new Text(text, 0, 0);
+    renderCall(args, theme, context) {
+      return renderFrameCall(theme, context as ToolRenderContextLike, "Plan", planTarget(args));
     },
 
-    renderResult(result, _options, theme) {
+    renderResult(result, _options, theme, context) {
       const details = result.details as PlanTrackerDetails | undefined;
       if (!details) {
-        const text = result.content[0];
-        return new Text(text?.type === "text" ? text.text : "", 0, 0);
+        const text = textContent(result);
+        return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", firstLine(text) || "Done"), outputLines(theme, text).slice(1));
       }
 
       if (details.error) {
-        return new Text(theme.fg("error", `Error: ${details.error}`), 0, 0);
+        return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "error", `Error: ${details.error}`), [], { status: "error" });
       }
 
       const taskList = details.tasks;
       switch (details.action) {
         case "init":
-          return new Text(
-            theme.fg("success", "✓ ") +
-              theme.fg("muted", `Plan initialized with ${taskList.length} tasks`),
-            0,
-            0
+          return renderFrameResult(
+            theme,
+            context as ToolRenderContextLike,
+            fg(theme, "muted", `Initialized ${plural(taskList.length, "task")}`),
+            taskList.map((task, index) => taskLine(theme, task, index)),
+            { cap: 12 }
           );
         case "update": {
-          const complete = taskList.filter((t) => t.status === "complete").length;
-          return new Text(
-            theme.fg("success", "✓ ") +
-              theme.fg("muted", `Updated (${complete}/${taskList.length} complete)`),
-            0,
-            0
+          const args = (context as { args?: Partial<PlanTrackerInput> } | undefined)?.args;
+          const { complete } = taskSummary(taskList);
+          const updated = args?.index !== undefined ? taskList[args.index] : undefined;
+          const body = updated ? [taskLine(theme, updated, args!.index!)] : taskList.map((task, index) => taskLine(theme, task, index));
+          const target = args?.index !== undefined ? ` [${args.index}]` : "";
+          return renderFrameResult(
+            theme,
+            context as ToolRenderContextLike,
+            fg(theme, "muted", `Updated${target} · ${complete}/${taskList.length} complete`),
+            body,
+            { cap: 6 }
           );
         }
         case "status": {
           if (taskList.length === 0) {
-            return new Text(theme.fg("dim", "No plan active"), 0, 0);
+            return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", "No plan active"));
           }
-          const complete = taskList.filter((t) => t.status === "complete").length;
-          let text = theme.fg("muted", `${complete}/${taskList.length} complete`);
-          for (const t of taskList) {
-            const icon =
-              t.status === "complete"
-                ? theme.fg("success", "✓")
-                : t.status === "in_progress"
-                  ? theme.fg("warning", "→")
-                  : theme.fg("dim", "○");
-            text += `\n${icon} ${theme.fg("muted", t.name)}`;
-          }
-          return new Text(text, 0, 0);
-        }
-        case "clear":
-          return new Text(
-            theme.fg("success", "✓ ") + theme.fg("muted", "Plan cleared"),
-            0,
-            0
+          const { complete, inProgress, pending } = taskSummary(taskList);
+          return renderFrameResult(
+            theme,
+            context as ToolRenderContextLike,
+            fg(theme, "muted", `${complete}/${taskList.length} complete · ${inProgress} in progress · ${pending} pending`),
+            taskList.map((task, index) => taskLine(theme, task, index)),
+            { cap: 15 }
           );
+        }
+        case "clear": {
+          const line = firstLine(textContent(result));
+          const match = line.match(/Plan cleared \((\d+) tasks? removed\)/);
+          const summary = match ? `Cleared ${plural(Number(match[1]), "task")}` : "No plan active";
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary));
+        }
         default:
-          return new Text(theme.fg("dim", "Done"), 0, 0);
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", "Done"));
       }
     },
   });

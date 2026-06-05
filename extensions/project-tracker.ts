@@ -57,6 +57,17 @@ import {
   buildJudgeSystemPrompt,
   buildJudgeAuditPrompt,
 } from "./judge-core.js";
+import {
+  fg,
+  firstLine,
+  outputLines,
+  plural,
+  renderFrameCall,
+  renderFrameResult,
+  semanticTruncate,
+  textContent,
+  type ToolRenderContextLike,
+} from "./tui-render.js";
 
 const DEFAULTS = { stateFile: ".pi/project/state.json" } as const;
 
@@ -216,6 +227,279 @@ function renderProjectWidgetText(state: ProjectState): string {
   if (active.length === 0) return `${state.project.name}: no active slices`;
   const summary = active.map((s) => `${s.id}[${s.strand.current_knot ?? "-"}]`).join(" · ");
   return `${state.project.name}: ${summary}`;
+}
+
+function trackerVerbAndTarget(args: Partial<ProjectTrackerInput> | undefined): { verb: string; target: string } {
+  const action = args?.action ?? "status";
+  switch (action) {
+    case "status":
+      return { verb: "Project", target: "status" };
+    case "next":
+      return { verb: "Project", target: "next" };
+    case "slice:list":
+      return { verb: "Slice", target: `list${args?.status ? ` · ${args.status}` : ""}` };
+    case "slice:get":
+      return { verb: "Slice", target: `get${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "slice:create":
+      return { verb: "Slice", target: `create${args?.id ? ` · ${args.id}` : ""}${args?.strand ? ` · ${args.strand}` : ""}` };
+    case "slice:update":
+      return { verb: "Slice", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "slice:activate":
+      return { verb: "Slice", target: `activate${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "slice:hold":
+      return { verb: "Slice", target: `hold${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "slice:sign_off":
+      return { verb: "Slice", target: `sign-off${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "knot:start":
+      return { verb: "Knot", target: `start${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.knot ? ` → ${args.knot}` : ""}` };
+    case "knot:update":
+      return { verb: "Knot", target: `update${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "knot:set_plan":
+      return { verb: "Knot", target: `plan${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "knot:sign_off":
+      return { verb: "Knot", target: `sign-off${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "knot:fast_forward":
+      return { verb: "FastForward", target: `${args?.slice_id ?? "slice"}${args?.knot ? ` → ${args.knot}` : ""}` };
+    case "knot:complete_fast_forward":
+      return { verb: "FastForward", target: `complete${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "knot:judge":
+      return { verb: "Judge", target: args?.slice_id ?? "slice" };
+    case "verify_criterion":
+      return { verb: "Criterion", target: `${args?.target ?? "knot"}${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.index !== undefined ? `[${args.index}]` : ""}` };
+    case "annotate":
+      return { verb: "Notes", target: `${args?.target ?? "slice"}${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.notes_mode ? ` · ${args.notes_mode}` : ""}` };
+    case "resource:add":
+      return { verb: "Resource", target: `add · ${args?.target ?? "slice"}${args?.slice_id ? ` · ${args.slice_id}` : ""}` };
+    case "resource:remove":
+      return { verb: "Resource", target: `remove · ${args?.target ?? "slice"}${args?.slice_id ? ` · ${args.slice_id}` : ""}${args?.index !== undefined ? `[${args.index}]` : ""}` };
+    case "milestone:add":
+      return { verb: "Milestone", target: `add${args?.name ? ` · "${semanticTruncate(args.name, 36)}"` : ""}` };
+    default:
+      return { verb: "Project", target: action };
+  }
+}
+
+function criteriaProgressText(criteria: Array<{ met: boolean }>): string {
+  return `${criteria.filter((c) => c.met).length}/${criteria.length}`;
+}
+
+function activeKnot(slice: ProjectState["slices"][number]) {
+  return slice.strand.knots.find((k) => k.name === slice.strand.current_knot);
+}
+
+function sliceById(state: ProjectState, sliceId: string | undefined) {
+  return sliceId ? state.slices.find((slice) => slice.id === sliceId) : undefined;
+}
+
+function knotIcon(status: string, theme: Parameters<typeof fg>[0]): string {
+  switch (status) {
+    case "signed_off":
+      return fg(theme, "success", "✓");
+    case "fast_forwarded":
+      return fg(theme, "success", "»");
+    case "active":
+      return fg(theme, "success", "▶");
+    default:
+      return fg(theme, "dim", "○");
+  }
+}
+
+function sliceIcon(status: SliceStatus, theme: Parameters<typeof fg>[0]): string {
+  switch (status) {
+    case "active":
+      return fg(theme, "success", "▶");
+    case "complete":
+      return fg(theme, "success", "✓");
+    case "on_hold":
+      return fg(theme, "warning", "‖");
+    default:
+      return fg(theme, "dim", "○");
+  }
+}
+
+function criterionLine(theme: Parameters<typeof fg>[0], criterion: { text: string; met: boolean; evidence?: string }, index: number): string {
+  const icon = criterion.met ? fg(theme, "success", "✓") : fg(theme, "dim", "○");
+  const evidence = criterion.evidence ? fg(theme, "muted", ` — ${criterion.evidence}`) : "";
+  return `${icon} ${fg(theme, "accent", `[${index}]`)} ${fg(theme, "toolOutput", criterion.text)}${evidence}`;
+}
+
+function sliceLine(theme: Parameters<typeof fg>[0], slice: ProjectState["slices"][number]): string {
+  const knot = activeKnot(slice);
+  const knotText = knot ? `${knot.name} ${criteriaProgressText(knot.success_criteria)}` : slice.strand.current_knot ?? "no active knot";
+  return `${sliceIcon(slice.status, theme)} ${fg(theme, "accent", `[${slice.priority}] ${slice.id}`)} ${fg(theme, "muted", `${slice.strand.name} · ${slice.status} · ${knotText}`)}`;
+}
+
+function projectStatusBody(theme: Parameters<typeof fg>[0], state: ProjectState): string[] {
+  const active = state.slices.filter((slice) => slice.status === "active");
+  if (active.length === 0) return [];
+  return active.map((slice) => sliceLine(theme, slice));
+}
+
+function sliceDetailBody(theme: Parameters<typeof fg>[0], slice: ProjectState["slices"][number]): string[] {
+  const lines: string[] = [];
+  lines.push(`${fg(theme, "muted", "goal:")} ${fg(theme, "toolOutput", slice.goal)}`);
+  if (slice.success_criteria.length > 0) {
+    lines.push(fg(theme, "muted", `criteria (${criteriaProgressText(slice.success_criteria)}):`));
+    slice.success_criteria.forEach((criterion, index) => lines.push(criterionLine(theme, criterion, index)));
+  }
+  if (slice.resources.length > 0) {
+    lines.push(fg(theme, "muted", "resources:"));
+    slice.resources.forEach((resource, index) => lines.push(`${fg(theme, "accent", `[${index}]`)} ${fg(theme, "toolOutput", `${resource.type}:${resource.ref}`)}`));
+  }
+  lines.push(fg(theme, "muted", "knots:"));
+  for (const knot of slice.strand.knots) {
+    const progress = knot.success_criteria.length ? ` ${criteriaProgressText(knot.success_criteria)}` : "";
+    lines.push(`${knotIcon(knot.status, theme)} ${fg(theme, "accent", knot.name)} ${fg(theme, "muted", `[${knot.status}]${progress}`)} ${fg(theme, "toolOutput", semanticTruncate(knot.focus, 96))}`);
+  }
+  return lines;
+}
+
+function signedOffKnotFromText(text: string): string | undefined {
+  return text.match(/(?:sign-off|Signed off|APPROVED|REJECTED)\s+[^→]+→\s+([^\.:]+)[\.:]/)?.[1]?.trim();
+}
+
+function nextFromText(text: string): string | undefined {
+  return text.match(/Next pending knot:\s*([^\.]+)\./)?.[1]?.trim();
+}
+
+function squashedFromText(text: string): string | undefined {
+  return text.match(/squashing:?\s*([^\)\.]+)/i)?.[1]?.trim();
+}
+
+function renderProjectTrackerResult(
+  result: { content?: Array<{ type: string; text?: string }>; details?: unknown },
+  theme: Parameters<typeof fg>[0],
+  context: ToolRenderContextLike | undefined
+) {
+  const details = result.details as ProjectTrackerDetails | undefined;
+  const text = textContent(result);
+  const line = firstLine(text);
+  const args = (context as { args?: Partial<ProjectTrackerInput> } | undefined)?.args;
+
+  if (!details) {
+    return renderFrameResult(theme, context, fg(theme, "muted", line || "Done"), outputLines(theme, text).slice(1), { cap: 12 });
+  }
+
+  if (details.error) {
+    return renderFrameResult(theme, context, fg(theme, "error", `Error: ${details.error}`), outputLines(theme, text).slice(1), { status: "error", cap: 10 });
+  }
+
+  const state = details.state;
+  switch (details.action) {
+    case "status": {
+      const counts = {
+        active: state.slices.filter((s) => s.status === "active").length,
+        defined: state.slices.filter((s) => s.status === "defined").length,
+        onHold: state.slices.filter((s) => s.status === "on_hold").length,
+        complete: state.slices.filter((s) => s.status === "complete").length,
+      };
+      const summary = `${state.project.name} · ${counts.active} active · ${counts.defined} defined · ${counts.onHold} on hold · ${counts.complete} complete`;
+      return renderFrameResult(theme, context, fg(theme, "muted", summary), projectStatusBody(theme, state), { cap: 12 });
+    }
+    case "slice:list": {
+      const slices = args?.status ? state.slices.filter((s) => s.status === args.status) : state.slices;
+      const summary = `Listed ${plural(slices.length, args?.status ? `${args.status} slice` : "slice")}`;
+      return renderFrameResult(theme, context, fg(theme, "muted", summary), slices.map((slice) => sliceLine(theme, slice)), { cap: 15 });
+    }
+    case "slice:get": {
+      const slice = sliceById(state, args?.slice_id);
+      if (!slice) return renderFrameResult(theme, context, fg(theme, "muted", line || "Slice not found"));
+      const knot = activeKnot(slice);
+      const summary = `${slice.id} · ${slice.status} · ${slice.strand.name}${knot ? ` · ${knot.name} ${criteriaProgressText(knot.success_criteria)}` : ""}`;
+      return renderFrameResult(theme, context, fg(theme, "muted", summary), sliceDetailBody(theme, slice), { cap: 16 });
+    }
+    case "next":
+      return renderFrameResult(theme, context, fg(theme, "muted", `Next: ${line}`));
+    case "slice:create": {
+      const slice = sliceById(state, args?.id);
+      const summary = slice ? `Created ${slice.id} · ${slice.strand.name} · ${slice.status}` : line;
+      const body = slice ? [
+        `${fg(theme, "muted", "goal:")} ${fg(theme, "toolOutput", slice.goal)}`,
+        `${fg(theme, "muted", "criteria:")} ${fg(theme, "toolOutput", String(slice.success_criteria.length))}`,
+        `${fg(theme, "muted", "knots:")} ${fg(theme, "toolOutput", slice.strand.knots.map((k) => k.name).join(" → "))}`,
+      ] : [];
+      return renderFrameResult(theme, context, fg(theme, "muted", summary), body, { cap: 8 });
+    }
+    case "slice:update": {
+      const changed = ["name", "description", "goal", "criteria", "priority", "type"].filter((key) => (args as Record<string, unknown> | undefined)?.[key] !== undefined);
+      return renderFrameResult(theme, context, fg(theme, "muted", line || `Updated ${args?.slice_id ?? "slice"}`), changed.length ? [fg(theme, "muted", `changed: ${changed.join(", ")}`)] : [], { cap: 4 });
+    }
+    case "slice:activate":
+    case "slice:hold":
+      return renderFrameResult(theme, context, fg(theme, "muted", line || "Updated slice"));
+    case "slice:sign_off": {
+      const body = args?.evidence ? [fg(theme, "muted", `evidence: ${semanticTruncate(args.evidence, 120)}`)] : [];
+      return renderFrameResult(theme, context, fg(theme, "muted", line || `Completed ${args?.slice_id ?? "slice"}`), body, { cap: 4 });
+    }
+    case "knot:start": {
+      const slice = sliceById(state, args?.slice_id);
+      const knot = slice?.strand.knots.find((candidate) => candidate.name === args?.knot);
+      const summary = knot ? `Started ${knot.name} · ${criteriaProgressText(knot.success_criteria)} criteria` : line;
+      const body = [
+        ...(knot?.plan ? [fg(theme, "toolOutput", knot.plan.path)] : text.match(/Preferred plan path:\s*(.+)$/m)?.[1] ? [fg(theme, "toolOutput", text.match(/Preferred plan path:\s*(.+)$/m)![1]!)] : []),
+        ...(knot?.success_criteria.map((criterion, index) => criterionLine(theme, criterion, index)) ?? []),
+      ];
+      return renderFrameResult(theme, context, fg(theme, "muted", summary), body, { cap: 12 });
+    }
+    case "knot:update": {
+      const parts = [args?.goals ? `goals=${args.goals.length}` : "", args?.title !== undefined ? "title set" : ""].filter(Boolean);
+      return renderFrameResult(theme, context, fg(theme, "muted", `${line || "Updated knot"}${parts.length ? ` · ${parts.join(" · ")}` : ""}`));
+    }
+    case "knot:set_plan": {
+      const path = text.match(/:\s*(.+)$/)?.[1] ?? args?.file_path;
+      const summary = `Plan ${args?.plan_status ?? "linked"}${path ? ` · ${path}` : ""}`;
+      return renderFrameResult(theme, context, fg(theme, "muted", summary));
+    }
+    case "knot:sign_off": {
+      if (line.startsWith("ARMED")) {
+        const slice = sliceById(state, args?.slice_id);
+        const knot = slice ? activeKnot(slice) : undefined;
+        const textLines = text.split("\n");
+        const body = [fg(theme, "toolOutput", textLines[textLines.length - 1] ?? "Call again with evidence to confirm."), ...(knot?.success_criteria.map((criterion, index) => criterionLine(theme, criterion, index)) ?? [])];
+        return renderFrameResult(theme, context, fg(theme, "warning", `Armed ${knot?.name ?? "knot"} for agent sign-off · not advanced`), body, { status: "warning", cap: 12 });
+      }
+      const knotName = signedOffKnotFromText(line);
+      const next = nextFromText(line);
+      const summary = `Signed off ${knotName ?? "knot"}${next ? ` · next: ${next}` : ""}`;
+      const body = args?.evidence ? [fg(theme, "muted", `evidence: ${semanticTruncate(args.evidence, 120)}`)] : [];
+      return renderFrameResult(theme, context, fg(theme, "muted", summary), body, { cap: 4 });
+    }
+    case "knot:fast_forward": {
+      const squashed = squashedFromText(line);
+      const body = [args?.notes ? fg(theme, "toolOutput", `User instructions: ${semanticTruncate(args.notes, 140)}`) : "", fg(theme, "muted", "Complete with knot:complete_fast_forward")].filter(Boolean);
+      return renderFrameResult(theme, context, fg(theme, "warning", `Fast-forward pending${squashed ? ` · squashing ${squashed}` : ""}`), body, { status: "warning", cap: 6 });
+    }
+    case "knot:complete_fast_forward": {
+      const target = text.match(/\.\s*([^\.]+) is pending/)?.[1];
+      const squashed = text.match(/squashed\s+([^\.]+)\./)?.[1];
+      const body = squashed ? squashed.split(", ").map((name) => `${fg(theme, "success", "»")} ${fg(theme, "toolOutput", name)}`) : [];
+      return renderFrameResult(theme, context, fg(theme, "muted", `Fast-forward complete${target ? ` · ${target} pending` : ""}`), body, { cap: 10 });
+    }
+    case "knot:judge": {
+      if (line.startsWith("Judge REJECTED")) {
+        const unmet = text.match(/unmet:\s*(.+)$/)?.[1]?.split("; ") ?? [];
+        const body = [fg(theme, "toolOutput", line.replace(/^Judge REJECTED [^:]+:\s*/, "Reason: ")), ...unmet.map((item) => `${fg(theme, "dim", "○")} ${fg(theme, "toolOutput", `Missing: ${item}`)}`)];
+        return renderFrameResult(theme, context, fg(theme, "warning", `Rejected ${signedOffKnotFromText(line) ?? "active knot"}${unmet.length ? ` · ${plural(unmet.length, "unmet criterion", "unmet criteria")}` : ""}`), body, { status: "warning", cap: 10 });
+      }
+      if (line.startsWith("Judge APPROVED")) {
+        const next = nextFromText(line);
+        return renderFrameResult(theme, context, fg(theme, "muted", `Approved ${signedOffKnotFromText(line) ?? "active knot"}${next ? ` · next: ${next}` : ""}`), [fg(theme, "success", "✓ All unmet criteria marked judge-verified")], { cap: 5 });
+      }
+      return renderFrameResult(theme, context, fg(theme, "muted", line || "Judge complete"), outputLines(theme, text).slice(1), { cap: 8 });
+    }
+    case "verify_criterion":
+      return renderFrameResult(theme, context, fg(theme, "muted", line || `Verified ${args?.target ?? "knot"} criterion`), args?.evidence ? [fg(theme, "muted", `evidence: ${semanticTruncate(args.evidence, 120)}`)] : [], { cap: 4 });
+    case "annotate":
+      return renderFrameResult(theme, context, fg(theme, "muted", line || `Updated ${args?.target ?? "slice"} notes`));
+    case "resource:add":
+      return renderFrameResult(theme, context, fg(theme, "muted", line || "Added resource"), args?.resource?.ref ? [fg(theme, "toolOutput", args.resource.ref)] : [], { cap: 4 });
+    case "resource:remove":
+      return renderFrameResult(theme, context, fg(theme, "muted", line || "Removed resource"));
+    case "milestone:add":
+      return renderFrameResult(theme, context, fg(theme, "muted", "Added milestone"), args?.name ? [fg(theme, "toolOutput", args.name)] : [], { cap: 4 });
+    default:
+      return renderFrameResult(theme, context, fg(theme, "muted", line || "Done"), outputLines(theme, text).slice(1), { cap: 12 });
+  }
 }
 
 async function updateWidget(ctx: ExtensionContext): Promise<void> {
@@ -416,6 +700,7 @@ export default function (pi: ExtensionAPI) {
     label: "Project Tracker",
     description: "Persistent, project-scoped FRS tracking. Slices follow a named strand of durable knots; query and mutate slices, knots, success criteria, plans, resources, and milestones.",
     parameters: ProjectTrackerParams,
+    renderShell: "self",
     async execute(_toolCallId, params: ProjectTrackerInput, _signal, _onUpdate, ctx) {
       let result: { text: string; state: ProjectState; error?: string };
 
@@ -500,7 +785,7 @@ export default function (pi: ExtensionAPI) {
           break;
         }
         case "knot:set_plan": {
-          result = await mutateState(ctx.cwd, (s) => handleKnotSetPlan(s, params.slice_id, params.file_path ?? "", params.plan_status ?? "linked"));
+          result = await mutateState(ctx.cwd, (s) => handleKnotSetPlan(s, params.slice_id, params.file_path, params.plan_status ?? "linked"));
           break;
         }
         case "knot:sign_off": {
@@ -569,6 +854,15 @@ export default function (pi: ExtensionAPI) {
         content: [{ type: "text", text: result.text }],
         details,
       };
+    },
+
+    renderCall(args, theme, context) {
+      const { verb, target } = trackerVerbAndTarget(args as Partial<ProjectTrackerInput> | undefined);
+      return renderFrameCall(theme, context as ToolRenderContextLike, verb, target);
+    },
+
+    renderResult(result, _options, theme, context) {
+      return renderProjectTrackerResult(result, theme, context as ToolRenderContextLike);
     },
   });
 

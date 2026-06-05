@@ -1,7 +1,6 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { Type, type Static } from "typebox";
@@ -30,6 +29,17 @@ import {
   handleUnrelate,
   handleUpdate,
 } from "./project-knowledge-core.js";
+import {
+  fg,
+  firstLine,
+  outputLines,
+  plural,
+  renderFrameCall,
+  renderFrameResult,
+  semanticTruncate,
+  textContent,
+  type ToolRenderContextLike,
+} from "./tui-render.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -139,6 +149,101 @@ const ProjectKnowledgeParams = Type.Object({
 
 type ProjectKnowledgeInput = Static<typeof ProjectKnowledgeParams>;
 
+const CATEGORY_FROM_PREFIX: Record<string, KnowledgeCategory> = {
+  dec: "decision",
+  rej: "rejected",
+  how: "howto",
+  con: "convention",
+  cst: "constraint",
+  war: "warning",
+  nte: "note",
+};
+
+function categoryForId(id: string | undefined): KnowledgeCategory | undefined {
+  if (!id) return undefined;
+  return CATEGORY_FROM_PREFIX[id.slice(0, 3)];
+}
+
+function categoryColor(category: KnowledgeCategory | undefined): string {
+  switch (category) {
+    case "constraint":
+    case "warning":
+      return "warning";
+    case "rejected":
+      return "error";
+    case "decision":
+    case "convention":
+      return "accent";
+    default:
+      return "muted";
+  }
+}
+
+function knowledgeTarget(args: Partial<ProjectKnowledgeInput> | undefined): string {
+  const action = args?.action ?? "list";
+  switch (action) {
+    case "add":
+      return `add${args?.category ? ` · ${args.category}` : ""}${args?.title ? ` · "${semanticTruncate(args.title, 36)}"` : ""}`;
+    case "update":
+    case "remove":
+    case "get":
+    case "graph":
+      return `${action}${args?.id ? ` · ${args.id}` : ""}${action === "graph" && args?.depth ? ` · depth ${args.depth}` : ""}`;
+    case "search":
+      return `search${args?.query ? ` · "${semanticTruncate(args.query, 44)}"` : ""}`;
+    case "relate":
+    case "unrelate":
+      return `${action}${args?.from_id && args?.to_id ? ` · ${args.from_id} --${args.relation_type ?? "relates-to"}--> ${args.to_id}` : ""}`;
+    case "list": {
+      const filters = [args?.filter_category ? `category=${args.filter_category}` : "", args?.slice_id ? `slice=${args.slice_id}` : "", args?.limit ? `limit=${args.limit}` : ""].filter(Boolean);
+      return `list${filters.length ? ` · ${filters.join(" · ")}` : ""}`;
+    }
+    case "context": {
+      const filters = [args?.slice_id ? `slice=${args.slice_id}` : "", args?.path ? `path=${semanticTruncate(args.path, 32)}` : ""].filter(Boolean);
+      return `context${filters.length ? ` · ${filters.join(" · ")}` : ""}`;
+    }
+    default:
+      return action;
+  }
+}
+
+function styledKnowledgeLine(theme: Theme, line: string): string {
+  const entry = line.match(/^.*\[((?:dec|rej|how|con|cst|war|nte)-\d{3})\]\s+(.+)$/);
+  if (entry) {
+    const id = entry[1]!;
+    const category = categoryForId(id);
+    const badge = category ? `[${category}]` : "[entry]";
+    return `${fg(theme, categoryColor(category), badge)} ${fg(theme, "accent", id)} ${fg(theme, "toolOutput", entry[2]!)}`;
+  }
+  if (line === "---") return fg(theme, "muted", line);
+  if (/^(Category|Tags|Path triggers|Relations|Incoming relations|Edge summary):/.test(line)) return fg(theme, "muted", line);
+  if (/^\s*[←→]/.test(line) || line.includes("--")) return fg(theme, "muted", line);
+  return fg(theme, "toolOutput", line);
+}
+
+function knowledgeBody(theme: Theme, text: string): string[] {
+  return text.split("\n").slice(1).map((line) => styledKnowledgeLine(theme, line));
+}
+
+function uniqueEntryCount(text: string): number {
+  return new Set(Array.from(text.matchAll(/\[((?:dec|rej|how|con|cst|war|nte)-\d{3})\]/g)).map((m) => m[1])).size;
+}
+
+function edgeCount(text: string): number {
+  return text.split("\n").filter((line) => line.includes("--") || /^\s*[←→]/.test(line)).length;
+}
+
+function conciseMutationSummary(action: string, line: string, stats: string | undefined): string {
+  const suffix = stats ? ` · ${stats}` : "";
+  const idTitle = line.match(/^(Added|Updated|Removed)\s+([^:]+):\s+(.+)$/);
+  if (idTitle) return `${idTitle[1]} ${idTitle[2]}${suffix}`;
+  const related = line.match(/^Related \[?([^\]\s]+)\]? --([^\s]+)--> \[?([^\]\s]+)\]?/);
+  if (related) return `Related ${related[1]} --${related[2]}--> ${related[3]}${suffix}`;
+  const unrelated = line.match(/^Removed relation \[?([^\]\s]+)\]? --([^\s]+)--> \[?([^\]\s]+)\]?/);
+  if (unrelated) return `Removed relation ${unrelated[1]} --${unrelated[2]}--> ${unrelated[3]}${suffix}`;
+  return `${action[0]?.toUpperCase()}${action.slice(1)}${suffix}`;
+}
+
 // ─── Exported context builder (used by bootstrap) ─────────────────────────────
 
 export async function buildKnowledgeContext(
@@ -165,6 +270,7 @@ export default function (pi: ExtensionAPI) {
     description:
       "Persistent project-scoped knowledge graph. Store and retrieve decisions, rejections, howtos, conventions, constraints, warnings, and notes. Entries are linked by typed directed relations and surface automatically via slice scope, path triggers, and tags.",
     parameters: ProjectKnowledgeParams,
+    renderShell: "self",
 
     async execute(_toolCallId, params: ProjectKnowledgeInput, _signal, _onUpdate, ctx) {
       let result: { text: string; store: KnowledgeStore; error?: string };
@@ -285,29 +391,68 @@ export default function (pi: ExtensionAPI) {
       };
     },
 
-    renderCall(args, theme) {
-      const a = args as ProjectKnowledgeInput | undefined;
-      let text = theme.fg("toolTitle", theme.bold("project_knowledge "));
-      text += theme.fg("muted", a?.action ?? "");
-      if (a?.action === "add" && a.category) text += ` ${theme.fg("accent", a.category)}`;
-      if (a?.id) text += ` ${theme.fg("dim", a.id)}`;
-      if (a?.title) text += ` ${theme.fg("dim", `"${a.title}"`)}`;
-      if (a?.action === "relate" && a.from_id && a.to_id) {
-        text += ` ${theme.fg("dim", `[${a.from_id}] --${a.relation_type ?? "relates-to"}--> [${a.to_id}]`)}`;
-      }
-      return new Text(text, 0, 0);
+    renderCall(args, theme, context) {
+      return renderFrameCall(theme, context as ToolRenderContextLike, "Knowledge", knowledgeTarget(args as Partial<ProjectKnowledgeInput> | undefined));
     },
 
-    renderResult(result, _options, theme) {
+    renderResult(result, _options, theme, context) {
       const d = result.details as { action: string; error?: string; stats?: string } | undefined;
-      if (d?.error) return new Text(theme.fg("error", `Error: ${d.error}`), 0, 0);
-      const stats = d?.stats ? theme.fg("muted", ` (${d.stats})`) : "";
-      const icon = d?.action === "add" ? "✓ " : d?.action === "remove" ? "✓ " : "";
-      const content = result.content[0];
-      const firstLine = content?.type === "text"
-        ? content.text.split("\n")[0] ?? ""
-        : "";
-      return new Text(theme.fg("success", icon) + theme.fg("muted", firstLine) + stats, 0, 0);
+      const text = textContent(result);
+      const line = firstLine(text);
+      if (d?.error) {
+        return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "error", `Error: ${d.error}`), outputLines(theme, text).slice(1), { status: "error" });
+      }
+
+      const action = d?.action ?? "list";
+      const stats = d?.stats;
+      const statsSuffix = stats ? ` · ${stats}` : "";
+
+      switch (action) {
+        case "add":
+        case "update":
+        case "remove":
+        case "relate":
+        case "unrelate":
+          return renderFrameResult(
+            theme,
+            context as ToolRenderContextLike,
+            fg(theme, "muted", conciseMutationSummary(action, line, stats)),
+            knowledgeBody(theme, text),
+            { cap: 6 }
+          );
+        case "get": {
+          const id = (context as { args?: Partial<ProjectKnowledgeInput> } | undefined)?.args?.id;
+          const category = categoryForId(id);
+          const title = line.replace(/^.*\[[^\]]+\]\s+/, "");
+          const summary = id ? `${id}${category ? ` · ${category}` : ""}${title ? ` · ${title}` : ""}` : line || "Entry";
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary), text.split("\n").map((l) => styledKnowledgeLine(theme, l)), { cap: 15 });
+        }
+        case "list": {
+          const count = uniqueEntryCount(text);
+          const summary = count > 0 ? `Listed ${plural(count, "entry", "entries")}${statsSuffix}` : `No matching knowledge entries${statsSuffix}`;
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary), text ? text.split("\n").map((l) => styledKnowledgeLine(theme, l)) : [], { cap: 15 });
+        }
+        case "search": {
+          const count = uniqueEntryCount(text);
+          const query = (context as { args?: Partial<ProjectKnowledgeInput> } | undefined)?.args?.query;
+          const summary = count > 0 ? `Found ${plural(count, "entry", "entries")}${query ? ` for "${query}"` : ""}` : line || "No matches";
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary), knowledgeBody(theme, text), { cap: 15 });
+        }
+        case "graph": {
+          const count = uniqueEntryCount(text);
+          const edges = edgeCount(text);
+          const id = (context as { args?: Partial<ProjectKnowledgeInput> } | undefined)?.args?.id;
+          const summary = `Graph ${id ?? "entry"} · ${plural(count, "node")} · ${plural(edges, "edge")}`;
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary), knowledgeBody(theme, text), { cap: 15 });
+        }
+        case "context": {
+          const count = uniqueEntryCount(text);
+          const summary = count > 0 ? `Surfaced ${plural(count, "relevant entry", "relevant entries")}` : "No relevant knowledge entries";
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary), knowledgeBody(theme, text), { cap: 12 });
+        }
+        default:
+          return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", line || "Done"), outputLines(theme, text).slice(1), { cap: 12 });
+      }
     },
   });
 }
