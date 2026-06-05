@@ -34,6 +34,14 @@ export function fg(theme: Theme, key: string, text: string): string {
   return fallbackTheme(theme).fg(key, text);
 }
 
+export function doneFg(theme: Theme, text: string): string {
+  return fg(theme, "toolDiffAdded", text);
+}
+
+export function activeFg(theme: Theme, text: string): string {
+  return fg(theme, "warning", text);
+}
+
 export function bold(theme: Theme, text: string): string {
   const t = fallbackTheme(theme) as Theme & { bold?: (s: string) => string };
   return t.bold ? t.bold(text) : text;

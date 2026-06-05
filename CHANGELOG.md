@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Completed progress markers in the unified widget, `plan_tracker`, and `project_tracker` now use a truly green done color distinct from the yellow active/in-progress markers, because apparently the theme's old `success` token wanted to cosplay as warning.
+
 ## [0.7.0] - 2026-06-05
 
 ### Added

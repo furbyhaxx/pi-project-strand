@@ -22,6 +22,8 @@ import {
   reconstructFromBranch,
 } from "./plan-tracker-core.js";
 import {
+  activeFg,
+  doneFg,
   fg,
   firstLine,
   outputLines,
@@ -75,11 +77,11 @@ function planTarget(args: Partial<PlanTrackerInput> | undefined): string {
 function taskIcon(status: Task["status"], theme: Theme): string {
   switch (status) {
     case "complete":
-      return fg(theme, "success", "✓");
+      return doneFg(theme, "✓");
     case "in_progress":
-      return fg(theme, "warning", "→");
+      return activeFg(theme, "→");
     default:
-      return fg(theme, "dim", "○");
+      return "○";
   }
 }
 

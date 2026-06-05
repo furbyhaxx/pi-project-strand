@@ -1,7 +1,7 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import type { Task } from "./plan-tracker-core.js";
 import type { Knot, ProjectState, Slice } from "./project-tracker-core.js";
-import { component, fg } from "./tui-render.js";
+import { activeFg, component, doneFg, fg } from "./tui-render.js";
 
 interface ProgressWidgetState {
   tasks: Task[];
@@ -33,11 +33,11 @@ function taskIcons(tasks: Task[], theme: Theme): string {
     .map((task) => {
       switch (task.status) {
         case "complete":
-          return fg(theme, "success", "●");
+          return doneFg(theme, "●");
         case "in_progress":
-          return fg(theme, "warning", "●");
+          return activeFg(theme, "●");
         default:
-          return fg(theme, "toolOutput", "○");
+          return "○";
       }
     })
     .join("");
@@ -49,11 +49,11 @@ function knotIcons(slice: Slice, theme: Theme): string {
     .map((knot) => {
       let icon: string;
       if (knot.status === "signed_off" || knot.status === "fast_forwarded") {
-        icon = fg(theme, "success", "●");
+        icon = doneFg(theme, "●");
       } else if (knot.status === "active") {
-        icon = fg(theme, "warning", "●");
+        icon = activeFg(theme, "●");
       } else {
-        icon = fg(theme, "toolOutput", "○");
+        icon = "○";
       }
       return `${icon} ${fg(theme, "toolOutput", knot.name)}`;
     })

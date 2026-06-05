@@ -59,6 +59,8 @@ import {
   buildJudgeAuditPrompt,
 } from "./judge-core.js";
 import {
+  activeFg,
+  doneFg,
   fg,
   firstLine,
   outputLines,
@@ -296,31 +298,31 @@ function sliceById(state: ProjectState, sliceId: string | undefined) {
 function knotIcon(status: string, theme: Parameters<typeof fg>[0]): string {
   switch (status) {
     case "signed_off":
-      return fg(theme, "success", "✓");
+      return doneFg(theme, "✓");
     case "fast_forwarded":
-      return fg(theme, "success", "»");
+      return doneFg(theme, "»");
     case "active":
-      return fg(theme, "success", "▶");
+      return activeFg(theme, "▶");
     default:
-      return fg(theme, "dim", "○");
+      return "○";
   }
 }
 
 function sliceIcon(status: SliceStatus, theme: Parameters<typeof fg>[0]): string {
   switch (status) {
     case "active":
-      return fg(theme, "success", "▶");
+      return activeFg(theme, "▶");
     case "complete":
-      return fg(theme, "success", "✓");
+      return doneFg(theme, "✓");
     case "on_hold":
-      return fg(theme, "warning", "‖");
+      return activeFg(theme, "‖");
     default:
-      return fg(theme, "dim", "○");
+      return "○";
   }
 }
 
 function criterionLine(theme: Parameters<typeof fg>[0], criterion: { text: string; met: boolean; evidence?: string }, index: number): string {
-  const icon = criterion.met ? fg(theme, "success", "✓") : fg(theme, "dim", "○");
+  const icon = criterion.met ? doneFg(theme, "✓") : "○";
   const evidence = criterion.evidence ? fg(theme, "muted", ` — ${criterion.evidence}`) : "";
   return `${icon} ${fg(theme, "accent", `[${index}]`)} ${fg(theme, "toolOutput", criterion.text)}${evidence}`;
 }
@@ -479,7 +481,7 @@ function renderProjectTrackerResult(
     case "knot:complete_fast_forward": {
       const target = text.match(/\.\s*([^\.]+) is pending/)?.[1];
       const squashed = text.match(/squashed\s+([^\.]+)\./)?.[1];
-      const body = squashed ? squashed.split(", ").map((name) => `${fg(theme, "success", "»")} ${fg(theme, "toolOutput", name)}`) : [];
+      const body = squashed ? squashed.split(", ").map((name) => `${doneFg(theme, "»")} ${fg(theme, "toolOutput", name)}`) : [];
       return renderFrameResult(theme, context, fg(theme, "muted", `Fast-forward complete${target ? ` · ${target} pending` : ""}`), body, { cap: 10 });
     }
     case "knot:judge": {
@@ -490,7 +492,7 @@ function renderProjectTrackerResult(
       }
       if (line.startsWith("Judge APPROVED")) {
         const next = nextFromText(line);
-        return renderFrameResult(theme, context, fg(theme, "muted", `Approved ${signedOffKnotFromText(line) ?? "active knot"}${next ? ` · next: ${next}` : ""}`), [fg(theme, "success", "✓ All unmet criteria marked judge-verified")], { cap: 5 });
+        return renderFrameResult(theme, context, fg(theme, "muted", `Approved ${signedOffKnotFromText(line) ?? "active knot"}${next ? ` · next: ${next}` : ""}`), [`${doneFg(theme, "✓")} ${fg(theme, "toolOutput", "All unmet criteria marked judge-verified")}`], { cap: 5 });
       }
       return renderFrameResult(theme, context, fg(theme, "muted", line || "Judge complete"), outputLines(theme, text).slice(1), { cap: 8 });
     }
