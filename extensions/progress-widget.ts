@@ -17,9 +17,15 @@ const LEGACY_WIDGET_KEYS = ["plan_tracker", "project_tracker"] as const;
 
 function firstActiveSlice(state: ProjectState | null): Slice | undefined {
   if (!state) return undefined;
-  return [...state.slices]
+  const active = [...state.slices]
     .filter((slice) => slice.status === "active")
-    .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))[0];
+    .sort((a, b) => (a.track === b.track ? 0 : a.track === "main" ? -1 : 1) || a.priority - b.priority || a.id.localeCompare(b.id));
+  return active[0];
+}
+
+function activeSideCount(state: ProjectState | null): number {
+  if (!state) return 0;
+  return state.slices.filter((slice) => slice.status === "active" && slice.track === "side").length;
 }
 
 function activeKnot(slice: Slice | undefined): Knot | undefined {
@@ -63,7 +69,10 @@ export function buildProgressWidgetLines(theme: Theme, state: ProgressWidgetStat
   const lines: string[] = [];
   const slice = firstActiveSlice(state.projectState);
   if (slice && state.projectState) {
-    lines.push(`${fg(theme, "muted", "Slice:")} ${fg(theme, "toolOutput", state.projectState.project.name)} ${fg(theme, "muted", "/")} ${fg(theme, "toolOutput", slice.id)}`);
+    const currentKnot = slice.strand.current_knot ?? "no-knot";
+    const sideCount = activeSideCount(state.projectState);
+    const questLabel = slice.track === "main" ? `${slice.id}[${currentKnot}]` : "no-main";
+    lines.push(`${fg(theme, "muted", "Quest:")} ${fg(theme, "toolOutput", questLabel)}${sideCount > 0 ? `${fg(theme, "muted", " · ")}${fg(theme, "toolOutput", `+${sideCount} side`)}` : ""}`);
     lines.push(`${fg(theme, "muted", "Knots:")} ${knotIcons(slice, theme)}`);
   }
 

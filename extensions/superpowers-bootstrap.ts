@@ -38,6 +38,8 @@ Planning, architecture, coding, testing, documentation, QA, coordination — own
 ### FRS (Feature Realization Strand) — Development Methodology
 Every feature is a **slice** that advances through an ordered **strand** of **knots** (quality stages). **Never skip a knot without explicit user approval** (use /project:knot:fast_forward).
 
+Each slice also belongs to a durable **track**: **main** (the project's spine / main quest) or **side** (parallel side quest). At most **one** main-track slice may be active at a time; side-track slices may be active in parallel. Bare \/project:build always advances the main quest only. Use \/project:slice:execute <id> to target a specific slice, especially a side quest.
+
 Strands are named knot sequences defined per project in \`.pi/project.jsonc\`; absent that, these built-in defaults apply and are snapshotted onto each slice at creation (a project's own \`strands\` override these):
 ${defaultStrandsList()}
 
@@ -47,7 +49,7 @@ Each knot is a **persistent record**: it carries its own goals, success criteria
 
 **MVFoS (Minimum Viable Feature or Slice):** the smallest real, observable, testable unit of work. No stubs or placeholders.
 
-**Starting new work:** run \`/project:new:slice <request>\` — an interactive funnel that captures the goal + success criteria, picks a strand, and creates the slice. Load \`/skill:frs-strategy\` for quality bars per knot.
+**Starting new work:** run \`/project:new:slice <request>\` — an interactive funnel that captures the goal + success criteria, asks whether the slice belongs on the main or side track, picks a strand, and creates the slice. Load \`/skill:frs-strategy\` for quality bars per knot.
 
 ### Required Project Files
 Every project should have these files. If any are missing, flag it and offer \`/project:onboard\`.
@@ -63,8 +65,10 @@ Every project should have these files. If any are missing, flag it and offer \`/
 - Use \`slice_id\` to scope entries to specific features; use \`path_triggers\` for file-path-relevant entries
 
 **\`project_tracker\` tool — FRS slice/strand/knot state:**
-- Check the active slice, its strand, and the active knot before starting work.
+- Check the main quest, any active side quests, their strands, and the active knot before starting work.
 - Define each knot's goals + success_criteria at knot:start; verify_criterion with evidence as work progresses.
+- Prefer active-knot plan files under \`.pi/project/plans/<slice-id>/<knot-slug>.md\`; this is the convention, not a hard requirement. Link plans with \`project_tracker action=knot:set_plan\`.
+- Use \`project_tracker action=slice:set_track\` to move a slice between the main and side tracks when the project structure changes.
 - After all active-knot criteria are verified, follow \`advance_by\`: \`agent\` → two-step \`project_tracker action=knot:sign_off\`, \`judge\` → \`project_tracker action=knot:judge\`, \`human\` → ask the user for \`/project:knot:advance\`; finalize slices with \`/project:slice:advance\`.
 
 **\`plan_tracker\` tool — current ad-hoc execution plan only:**
@@ -75,6 +79,7 @@ Every project should have these files. If any are missing, flag it and offer \`/
 ### Skill Routing
 Load the relevant skill before acting — don't guess or improvise when a skill exists:
 - New feature work → \`/project:new:slice\` (interactive funnel: goal, success criteria, strand)
+- Continue the main quest → \`/project:build\`; continue a specific or side-quest slice → \`/project:slice:execute <id>\`
 - Any design/feature/change work → \`/skill:brainstorming\` (required before implementation)
 - FRS scope, knot definition, quality bars → \`/skill:frs-strategy\`
 - Writing implementation plans → \`/skill:writing-plans\`
@@ -99,7 +104,7 @@ export default function (pi: ExtensionAPI) {
     const projectResult = await buildProjectStrandContext(ctx.cwd);
     if (projectResult) parts.push(projectResult.text);
 
-    const knowledgeContext = await buildKnowledgeContext(ctx.cwd, projectResult?.activeSliceId, ctx.cwd);
+    const knowledgeContext = await buildKnowledgeContext(ctx.cwd, projectResult?.activeSliceIds, ctx.cwd);
     if (knowledgeContext) parts.push(knowledgeContext);
 
     return { systemPrompt: parts.join("\n\n") };

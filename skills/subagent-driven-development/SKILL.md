@@ -137,7 +137,7 @@ Workers report one of four statuses:
 ## Example Workflow
 
 ```
-[Read plan: docs/superpowers/plans/feature-plan.md]
+[Read plan: .pi/project/plans/<slice-id>/<knot-slug>.md]
 [Extract all 5 tasks + FRS context + knot criteria]
 [Init plan_tracker with all tasks]
 

@@ -17,10 +17,13 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** If working in an isolated worktree, it should have been created via the `/skill:using-git-worktrees` skill at execution time.
 
-**Spec input:** The approved design spec should normally live under `docs/superpowers/specs/`. It must contain an FRS Plan section with knot criteria and should identify which `PROJECT.md` planned feature/capability it advances.
+**Spec input:** The approved design spec may live wherever the project keeps design artifacts. It must contain an FRS Plan section with knot criteria and should identify which `PROJECT.md` planned feature/capability it advances.
 
-**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
-- (User preferences for plan location override this default)
+**Preferred plan location:** `.pi/project/plans/<slice-id>/<knot-slug>.md`
+- Derive `<slice-id>` from the active `project_tracker` slice id.
+- Derive `<knot-slug>` from the active knot name by lowercasing and replacing non-alphanumeric runs with `-` (for example, `Proof-of-Work` → `proof-of-work`).
+- This is a preference, not a hard requirement: user/project-specific locations override it.
+- After saving, link the plan with `project_tracker action=knot:set_plan slice_id=<id> file_path=<path> plan_status=linked` when `project_tracker` is available.
 
 ## Scope Check
 
@@ -167,7 +170,7 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 After saving the plan, offer execution choice:
 
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
+**"Plan complete and saved to `.pi/project/plans/<slice-id>/<knot-slug>.md`. Two execution options:**
 
 **1. Teammate-Driven (recommended)** — delegate a fresh `worker` per task via `delegate`, `reviewer` review between tasks, fast iteration
 

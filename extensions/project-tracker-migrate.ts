@@ -47,6 +47,7 @@ export function migrateLegacyState(legacy: any, strandTemplate: StrandTemplate, 
       name: old.name ?? old.id,
       description: old.description ?? "",
       type: old.type === "horizontal" ? "horizontal" : "vertical",
+      track: "main",
       priority: typeof old.priority === "number" ? old.priority : 100,
       status: old.status ?? "defined",
       goal: "",                 // Pass-2 backfill

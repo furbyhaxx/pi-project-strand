@@ -20,6 +20,7 @@ describe("progress widget", () => {
           name: "Foundations research",
           description: "",
           type: "vertical",
+          track: "main",
           priority: 100,
           status: "active",
           goal: "",
@@ -44,6 +45,35 @@ describe("progress widget", () => {
             ],
           },
         },
+        {
+          id: "docs-follow-up",
+          name: "Docs follow-up",
+          description: "",
+          type: "vertical",
+          track: "side",
+          priority: 120,
+          status: "active",
+          goal: "",
+          success_criteria: [],
+          started_at: null,
+          completed_at: null,
+          signed_off: false,
+          signed_off_message: null,
+          validation_evidence_summary: null,
+          notes: null,
+          resources: [],
+          strand: {
+            name: "change",
+            description: "",
+            current_knot: "Patch",
+            pending_fast_forward: null,
+            knots: [
+              { name: "Scope", title: null, focus: "", status: "signed_off", goals: [], success_criteria: [], plan: null, resources: [], started_at: null, completed_at: null, signed_off: true, signed_off_message: null, validation_evidence_summary: null, notes: null, advance_by: ["human"], judge: null, signoff_arm: null, last_verdict: null },
+              { name: "Patch", title: null, focus: "", status: "active", goals: [], success_criteria: [], plan: null, resources: [], started_at: null, completed_at: null, signed_off: false, signed_off_message: null, validation_evidence_summary: null, notes: null, advance_by: ["agent"], judge: null, signoff_arm: null, last_verdict: null },
+              { name: "Verify", title: null, focus: "", status: "pending", goals: [], success_criteria: [], plan: null, resources: [], started_at: null, completed_at: null, signed_off: false, signed_off_message: null, validation_evidence_summary: null, notes: null, advance_by: ["human"], judge: null, signoff_arm: null, last_verdict: null },
+            ],
+          },
+        },
       ],
     };
 
@@ -57,7 +87,7 @@ describe("progress widget", () => {
 
     const lines = buildProgressWidgetLines(theme, { projectState: state, tasks });
     expect(lines).toEqual([
-      "Slice: serde_yass / foundations-research",
+      "Quest: foundations-research[Synthesis] · +1 side",
       "Knots: ● Preparation / ● DeepResearch / ● Synthesis / ○ Finalization (2/4)",
       "Tasks: ●●●○○ (2/5)  Write final foundations research report",
     ]);

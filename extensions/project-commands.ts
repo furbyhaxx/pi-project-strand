@@ -4,7 +4,7 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 
 const REQUIRED_PROJECT_FILES = ["PROJECT.md", "VISION.md", "ARCHITECTURE.md", "AGENTS.md"] as const;
 
-type ProjectCommand = "onboard" | "new:slice" | "new:strand" | "build" | "change";
+type ProjectCommand = "onboard" | "new:slice" | "new:strand" | "build" | "slice:execute" | "change";
 
 export interface ProjectAudit {
   cwd: string;
@@ -14,6 +14,7 @@ export interface ProjectAudit {
   requiredFiles: Array<{ file: string; exists: boolean }>;
   projectStateExists: boolean;
   projectKnowledgeExists: boolean;
+  projectPlansDirExists: boolean;
   topLevelEntries: string[];
 }
 
@@ -49,6 +50,7 @@ export async function auditProject(cwd: string, args = ""): Promise<ProjectAudit
     ),
     projectStateExists: targetExists && await exists(path.join(targetPath, ".pi", "project", "state.json")),
     projectKnowledgeExists: targetExists && await exists(path.join(targetPath, ".pi", "project", "knowledge.json")),
+    projectPlansDirExists: targetExists && await exists(path.join(targetPath, ".pi", "project", "plans")),
     topLevelEntries,
   };
 }
@@ -67,6 +69,7 @@ export function formatProjectAudit(audit: ProjectAudit): string {
     required,
     `project_tracker state: ${audit.projectStateExists ? "present" : "missing"}`,
     `project_knowledge state: ${audit.projectKnowledgeExists ? "present" : "missing"}`,
+    `preferred project plans dir: ${audit.projectPlansDirExists ? "present" : "missing"} (.pi/project/plans/)`,
     `Top-level entries: ${entries}`,
   ].join("\n");
 }
@@ -78,6 +81,34 @@ function baseCommandHeader(command: ProjectCommand, args: string, audit?: Projec
     audit ? `\nDeterministic project audit:\n${formatProjectAudit(audit)}` : "",
     `</pi-project-strand-command>`,
   ].filter(Boolean).join("\n");
+}
+
+function buildExecutionRoutingBlock(command: "build" | "slice:execute"): string {
+  const scope = command === "build"
+    ? "Scope: `/project:build` advances the **main quest only**: the single active main-track slice, or the next defined main-track slice. Never pick up a side quest here; use `/project:slice:execute <id>` for that."
+    : "Scope: `/project:slice:execute <id>` advances the explicit target slice id from `User arguments`. Use it for side quests or when the user wants a specific slice now.";
+  const target = command === "build"
+    ? "Target selection for this command: resolve the main quest from tracker state, then route the workflow below against that target slice. If no main quest exists but side quests do, explain that and point the user at `/project:slice:execute <id>`."
+    : "Target selection for this command: read `project_tracker action=slice:get slice_id=<id>` for the exact id from `User arguments`. If the id is unknown, surface the tool error plainly and stop.";
+  const switching = command === "slice:execute"
+    ? "If the target slice is `track=main` and a different main quest is already active, **confirm a hold-and-switch with the user first**. On approval: `project_tracker action=slice:hold` the current main quest, then `project_tracker action=slice:activate` the target. The underlying invariant forbids silent double activation."
+    : "Do not silently switch away from the active main quest. Bare `/project:build` stays on the current main quest; side quests are always out of scope here.";
+
+  return [
+    scope,
+    target,
+    switching,
+    "Route the target slice by state:",
+    "- `complete` → report that the slice is already done; nothing to execute.",
+    "- `defined` → activate it and start its first knot via `/skill:frs-strategy`, defining knot goals + success_criteria before implementation.",
+    "- `active` + active knot + all criteria met → follow that knot's `advance_by` policy (`agent` → two-step `project_tracker action=knot:sign_off`, `judge` → `project_tracker action=knot:judge`, `human` → prompt the user for `/project:knot:advance`).",
+    "- `active` + active knot + linked plan → resume with `/skill:executing-plans` or `/skill:subagent-driven-development`.",
+    "- `active` + active knot, no plan → use `/skill:writing-plans` first, preferably saving to `.pi/project/plans/<slice-id>/<knot-slug>.md`, then link it with `project_tracker action=knot:set_plan slice_id=<id> file_path=<path> plan_status=linked`.",
+    "- `active` + no active knot + pending knots remain → use `/skill:frs-strategy` to `knot:start` the next pending knot.",
+    "- `active` + all knots signed off → prompt the user for final `/project:slice:advance` sign-off.",
+    "- `on_hold` → reactivate it, then continue with the same routing logic. If it is a main-track slice and another main quest is active, apply the confirmed hold-and-switch rule first.",
+    "- no project files / no tracker state → run `/project:onboard` first.",
+  ].join("\n");
 }
 
 export function buildProjectCommandMessage(command: ProjectCommand, args: string, audit?: ProjectAudit): string {
@@ -111,9 +142,10 @@ Requirements:
 1. Load /skill:brainstorming and follow it. Surface PROJECT.md Planned Features / Capabilities, project_tracker status, and relevant project_knowledge (decisions, constraints, rejected approaches) BEFORE asking design questions.
 2. Ask focused questions one at a time to establish purpose, scope, constraints, and complexity. Research (web/local) where it changes the decision; persist findings as project_knowledge entries and attach them as slice resources.
 3. Converge with the user on the slice GOAL and slice-level SUCCESS CRITERIA ("what done means").
-4. Strand selection: call ask_user_question with one single-select question. Offer each strand defined in .pi/project.jsonc (or the built-in defaults: spike, quick, deep-research, change, granular) as an option — each option's description states when to use it (pros/cons), and its preview shows the knot sequence with focus. Assess complexity and mark your recommended strand first with "(Recommended)".
-5. Create the slice: project_tracker action=slice:create with id, name, description, type, the chosen strand name, goal, and criteria (the slice-level success criteria). The slice is created status=defined with the full knot sequence pending.
-6. Do NOT start a knot here. End with a summary (goal, success criteria, chosen strand + why) and tell the user to run /project:build to activate the slice and start its first knot.
+4. Track selection: call ask_user_question with one single-select question for **main vs side**. Recommend **main** when this is the project's primary questline and should be resumed by bare /project:build; recommend **side** when it is optional/parallel work that should be resumed explicitly via /project:slice:execute <id>.
+5. Strand selection: call ask_user_question with one single-select question. Offer each strand defined in .pi/project.jsonc (or the built-in defaults: spike, quick, deep-research, change, granular) as an option — each option's description states when to use it (pros/cons), and its preview shows the knot sequence with focus. Assess complexity and mark your recommended strand first with "(Recommended)".
+6. Create the slice: project_tracker action=slice:create with id, name, description, type, track, the chosen strand name, goal, and criteria (the slice-level success criteria). The slice is created status=defined with the full knot sequence pending.
+7. Do NOT start a knot here. End with a summary (goal, success criteria, chosen track + why, chosen strand + why) and tell the user to run /project:build for a main-track slice or /project:slice:execute <id> for a side-track slice.
 
 Do not dump all questions at once. Do not ask the user to implement anything. Respect the design-approval gate before any implementation work.`;
   }
@@ -138,21 +170,31 @@ Do not dump all questions at once. Do not start any implementation work.`;
   if (command === "build") {
     return `${header}
 
-Resume or start implementing the active pi-project-strand project slice.
+Resume or start implementing the active pi-project-strand **main quest**.
 
 Requirements:
-1. Read project_tracker status, next action, active slice, active knot, criteria, and linked plan status.
-2. Read PROJECT.md Planned Features / Capabilities and relevant project_knowledge entries for the active slice and current files.
-3. Route based on state:
-   - Active slice with an active knot and all criteria met: follow that knot's \`advance_by\` policy (\`agent\` → two-step \`project_tracker action=knot:sign_off\`, \`judge\` → \`project_tracker action=knot:judge\`, \`human\` → prompt the user for \`/project:knot:advance\`).
-   - Active slice with an active knot + linked plan: resume with /skill:executing-plans or /skill:subagent-driven-development.
-   - Active slice with an active knot but no plan: use /skill:writing-plans first.
-   - Active slice, no active knot, pending knots remain: use /skill:frs-strategy to knot:start the next pending knot (define its goals + success_criteria).
-   - Active slice, all knots signed off: prompt the user for final /project:slice:advance sign-off.
-   - Defined slice: ask the user to activate it (slice:activate), or run /project:new:slice for a new feature.
-   - No project files/tracker state: run /project:onboard first.
+1. Read project_tracker status, next action, main quest, active side quests, active knot, criteria, and linked plan status.
+2. Read PROJECT.md Planned Features / Capabilities and relevant project_knowledge entries for the main quest and current files.
+3. ${buildExecutionRoutingBlock("build")}
 4. Explain the routing briefly, then proceed with the appropriate skill.
 5. Keep required gates: design approval, spec review, \`advance_by\` knot advancement, deployment approval.`;
+  }
+
+  if (command === "slice:execute") {
+    const targetArgLine = args.trim()
+      ? `User arguments already name the target slice id: \`${args.trim()}\`.`
+      : "User arguments MUST contain the target slice id. If missing, report the usage and stop.";
+    return `${header}
+
+Resume or start implementing one explicit pi-project-strand slice.
+
+Requirements:
+1. ${targetArgLine}
+2. Read project_tracker status, next action, the target slice, the current main quest, active side quests, active knot, criteria, and linked plan status.
+3. Read PROJECT.md Planned Features / Capabilities and relevant project_knowledge entries for the target slice and current files.
+4. ${buildExecutionRoutingBlock("slice:execute")}
+5. Explain the routing briefly, then proceed with the appropriate skill.
+6. Keep required gates: design approval, spec review, \`advance_by\` knot advancement, deployment approval.`;
   }
 
   return `${header}
@@ -207,10 +249,22 @@ export default function projectCommandsExtension(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("project:build", {
-    description: "Resume or start implementation based on current project_tracker state",
+    description: "Resume or start implementation for the main quest based on current project_tracker state",
     handler: async (args, ctx) => {
       const audit = await auditProject(ctx.cwd);
       sendProjectCommand(pi, ctx, buildProjectCommandMessage("build", args, audit));
+    },
+  });
+
+  pi.registerCommand("project:slice:execute", {
+    description: "Resume or start implementation for one explicit slice id",
+    handler: async (args, ctx) => {
+      if (!args.trim()) {
+        ctx.ui.notify("Usage: /project:slice:execute <slice-id>", "warning");
+        return;
+      }
+      const audit = await auditProject(ctx.cwd);
+      sendProjectCommand(pi, ctx, buildProjectCommandMessage("slice:execute", args, audit));
     },
   });
 

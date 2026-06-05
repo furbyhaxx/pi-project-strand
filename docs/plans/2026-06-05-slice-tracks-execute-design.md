@@ -129,7 +129,7 @@ track-aware**. Routing the agent must follow, keyed on the target slice's `statu
   different main quest is active → confirm hold-and-switch** (hold current main, activate
   target), then proceed.
 - `active` + active knot + linked plan → resume (executing-plans / subagent-driven-development).
-- `active` + active knot, no plan → writing-plans first.
+- `active` + active knot, no plan → writing-plans first, saving by preference to `.pi/project/plans/<slice-id>/<knot-slug>.md` and linking via `knot:set_plan`.
 - `active`, no active knot, pending knots remain → frs-strategy `knot:start` the next knot.
 - `active`, all knots signed off → prompt `/project:slice:advance`.
 - `on_hold` → reactivate (same main-switch rule if `main`) + continue.

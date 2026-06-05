@@ -18,7 +18,9 @@ describe("README parity", () => {
   test("documents project jsonc config and knot advance command", async () => {
     const text = await read("README.md");
     expect(text).toContain(".pi/project.jsonc");
+    expect(text).toContain(".pi/project/plans/<slice-id>/<knot-slug>.md");
     expect(text).toContain("/project:knot:advance");
+    expect(text).toContain("/project:slice:execute");
     expect(text).toContain("knot:sign_off");
   });
 

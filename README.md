@@ -6,8 +6,9 @@ Persistent, project-scoped FRS/MVFoS tracking and workflow skills for [pi](https
 
 `pi-project-strand` keeps two layers separate on purpose:
 
-- **`project_tracker`** — persistent, shared, file-backed state for slices, knots, criteria, linked plans, and milestones
-- **`plan_tracker`** — session-scoped, teammate-local task tracking for the work happening right now
+- **`project_tracker`** — persistent, shared, file-backed lifecycle state for slices, knots, criteria, linked plan files, resources, and milestones
+- **Main/side slice tracks** — every slice lives on the durable `main` or `side` track; bare `/project:build` advances the main quest, while `/project:slice:execute <id>` targets a specific slice or side quest
+- **`plan_tracker`** — the ad-hoc, session-scoped task checklist for the plan currently being executed right now
 
 This package is portable. EdgeOS is the first project using it, but project specifics live in `.pi/project.jsonc`, not in the package code.
 
@@ -37,21 +38,28 @@ Create `.pi/project.jsonc` in the project root:
 {
   "project": {
     "name": "EdgeOS",
-    "description": "High-performance Alpine-based edge router",
+    "description": "High-performance Alpine-based edge router"
   },
 
   // Optional override
   // "stateFile": ".pi/project/state.json",
 
-  // Optional custom knot sequence
-  // "knots": [
-  //   { "name": "PoW", "focus": "Prove approach and establish design decisions" },
-  //   { "name": "Alpha", "focus": "First real, integrated implementation" },
-  // ]
+  // Optional custom strand templates. If omitted, built-in defaults are used.
+  // "strands": {
+  //   "quick": {
+  //     "description": "Small, well-scoped slices",
+  //     "knots": [
+  //       { "name": "Prototype", "focus": "De-risk the approach" },
+  //       { "name": "Realization", "focus": "Build the real behavior" },
+  //       { "name": "Finalization", "focus": "Verify and polish" }
+  //     ]
+  //   }
+  // }
 }
 ```
 
 State is stored persistently in `.pi/project/state.json` by default using **atomic updates**.
+Knowledge is stored in `.pi/project/knowledge.json`. Implementation plan files are preferably stored under `.pi/project/plans/<slice-id>/<knot-slug>.md`; this is a convention, not a hard requirement, and `project_tracker action=knot:set_plan` can link any path.
 
 ## What's inside
 
@@ -66,7 +74,7 @@ State is stored persistently in `.pi/project/state.json` by default using **atom
 ### Tools
 
 #### `plan_tracker`
-Session-scoped task tracking:
+Session-scoped ad-hoc plan tracking for the work currently in flight. Use this for the active knot's execution checklist or teammate-local implementation queue. Do **not** use it for persistent project progress:
 
 ```ts
 plan_tracker({ action: "init", tasks: ["Task 1", "Task 2"] })
@@ -76,19 +84,43 @@ plan_tracker({ action: "clear" })
 ```
 
 #### `project_tracker`
-Persistent project-scoped tracking:
+Persistent project-scoped lifecycle tracking. Use this for durable progress across slices, knots, criteria, plan links, resources, milestones, and sign-off:
 
 ```ts
-project_tracker({ action: "slice:create", id: "dns-cache", name: "DNS Cache", description: "...", type: "vertical" })
-project_tracker({ action: "knot:start", slice_id: "dns-cache", knot: "PoW", criteria: ["Approach validated", "API shape decided"] })
+project_tracker({
+  action: "slice:create",
+  id: "dns-cache",
+  name: "DNS Cache",
+  description: "Cache upstream DNS responses",
+  type: "vertical",
+  track: "main",
+  strand: "quick",
+  goal: "Cut repeat DNS latency without stale answers",
+  criteria: ["p99 cached lookup < 1ms", "respects upstream TTLs"],
+})
+project_tracker({ action: "slice:set_track", slice_id: "dns-cache", track: "side" })
+project_tracker({ action: "knot:start", slice_id: "dns-cache", knot: "Prototype", criteria: ["Approach validated", "API shape decided"] })
+project_tracker({ action: "knot:set_plan", slice_id: "dns-cache" }) // links the preferred .pi/project/plans/dns-cache/prototype.md path
 project_tracker({ action: "verify_criterion", slice_id: "dns-cache", target: "knot", index: 0, evidence: "Spike succeeded" })
-project_tracker({ action: "knot:sign_off", slice_id: "dns-cache" }) // arm agent-gated sign-off
+project_tracker({ action: "knot:sign_off", slice_id: "dns-cache" }) // arm agent-gated sign-off when advance_by permits it
 project_tracker({ action: "knot:sign_off", slice_id: "dns-cache", evidence: "All agent-gated criteria verified" }) // confirm
 project_tracker({ action: "status" })
 project_tracker({ action: "next" })
 ```
 
 ### Slash commands
+
+Workflow commands:
+
+- `/project:onboard`
+- `/project:new:slice <request>`
+- `/project:new:strand`
+- `/project:build` — advance the main quest only
+- `/project:slice:execute <slice-id>` — advance one explicit slice or side quest
+- `/project:implement` — alias for `/project:build`
+- `/project:change`
+
+Tracker/status commands:
 
 - `/project:status`
 - `/project:dashboard`
@@ -123,10 +155,11 @@ This package includes the adapted workflow skills, including:
 
 1. **Define or inspect the project strand** with `project_tracker` or `/project:*`
 2. **Brainstorm** with `/skill:brainstorming`
-3. **Write or link a plan** for the active slice and knot
-4. **Track per-session execution** with `plan_tracker`
-5. **Verify criteria** in `project_tracker`
-6. **Advance the knot according to `advance_by`**: `agent` uses the two-step `project_tracker action=knot:sign_off`, `judge` uses `project_tracker action=knot:judge`, and `human` waits for `/project:knot:advance`
+3. **Choose the right execution entry point**: `/project:build` for the main quest, `/project:slice:execute <id>` for a specific or side-track slice
+4. **Write or link a plan** for the active slice and knot, preferably at `.pi/project/plans/<slice-id>/<knot-slug>.md`
+5. **Track the current ad-hoc execution checklist** with `plan_tracker`
+6. **Track durable slice/knot/project progress** in `project_tracker`
+7. **Advance the knot according to `advance_by`**: `agent` uses the two-step `project_tracker action=knot:sign_off`, `judge` uses `project_tracker action=knot:judge`, and `human` waits for `/project:knot:advance`
 
 ## Development
 

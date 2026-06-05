@@ -110,6 +110,7 @@ export interface ListFilter {
 
 export interface ContextInput {
   slice_id?: string;
+  slice_ids?: string[];
   path?: string;
   limit?: number;
 }
@@ -479,6 +480,13 @@ export function handleContext(store: KnowledgeStore, input: ContextInput): Knowl
   const limit = input.limit ?? 8;
   const seen = new Set<string>();
   const result: KnowledgeEntry[] = [];
+  const sliceIds = Array.from(
+    new Set(
+      [...(input.slice_ids ?? []), ...(input.slice_id ? [input.slice_id] : [])]
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
 
   const add = (e: KnowledgeEntry) => {
     if (!seen.has(e.id) && result.length < limit) {
@@ -492,10 +500,12 @@ export function handleContext(store: KnowledgeStore, input: ContextInput): Knowl
     if (e.category === "constraint" || e.category === "warning") add(e);
   }
 
-  // 2. Active slice entries
-  if (input.slice_id) {
-    for (const e of store.entries) {
-      if (e.slice_id === input.slice_id) add(e);
+  // 2. Active slice entries (ordered main quest first when callers provide slice_ids that way)
+  if (sliceIds.length > 0) {
+    for (const sliceId of sliceIds) {
+      for (const e of store.entries) {
+        if (e.slice_id === sliceId) add(e);
+      }
     }
   }
 

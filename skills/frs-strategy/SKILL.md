@@ -13,6 +13,13 @@ description: Use when defining scope for a new feature or slice, identifying the
 
 Every feature is a **slice**. Each slice follows a **strand** — a named, ordered sequence of **knots** (quality stages). A slice advances knot by knot; knots are not skipped without explicit user approval.
 
+Each slice also belongs to a durable **track**:
+
+- **`main`** — the project's primary questline / spine
+- **`side`** — optional parallel work / side quest
+
+Only **one** main-track slice may be active at a time; side-track slices may run in parallel. Bare `/project:build` always advances the main quest. Use `/project:slice:execute <id>` when the user wants a specific slice, especially a side quest.
+
 **Strands are configurable.** They are templates defined per project under `strands` in `.pi/project.jsonc` (each entry has a `description` and an ordered list of `knots`, each with a `name` and a `focus`). When a slice is created, the chosen strand is **snapshotted** onto the slice — the slice is self-contained from then on, so later edits to the project template do not retroactively alter existing slices.
 
 **Built-in default strands:**
@@ -40,7 +47,7 @@ A knot is **not** transient state that gets erased on completion — it is a dur
 
 - **goals** — what the knot set out to achieve
 - **success_criteria** — each verified individually, each carrying its own **evidence** and a `met_at` timestamp
-- **plan** — an optional linked plan file and its status (`linked` / `complete`)
+- **plan** — an optional linked plan file and its status (`linked` / `complete`); prefer `.pi/project/plans/<slice-id>/<knot-slug>.md` unless the user/project chooses another path
 - **resources** — docs, files, URLs, reports, memory/knowledge references attached to the knot
 - **sign-off summary** — the `signed_off_message` plus a `validation_evidence_summary` recorded at sign-off
 
@@ -82,7 +89,9 @@ When `advance_by` includes `judge`, advancement is gated by an independent audit
 - **`plan_tracker`** = the ad-hoc execution checklist for the work currently in progress in this session: the active knot plan, the current implementation pass, or a teammate-local task queue.
 - If the information should still matter when the current ad-hoc plan is cleared, it belongs in `project_tracker`, not `plan_tracker`.
 
-- **`/project:new:slice <request>`** — interactive funnel that captures the slice goal + success criteria, picks a strand, and creates the slice (replaces the old brainstorm entry point).
+- **`/project:new:slice <request>`** — interactive funnel that captures the slice goal + success criteria, asks whether it belongs on the `main` or `side` track, picks a strand, and creates the slice (replaces the old brainstorm entry point).
++- **`/project:build`** — advance the main quest only: the active main-track slice, or the next defined main-track slice.
++- **`/project:slice:execute <id>`** — advance one explicit slice id, including side quests and user-directed main-quest switches.
 - **`project_tracker action=knot:sign_off`** — agent self-advance path for knots whose `advance_by` includes `agent`: first call arms, second call within the freshness window confirms with evidence.
 - **`project_tracker action=knot:judge` / `/project:knot:judge`** — judge path for knots whose `advance_by` includes `judge`.
 - **`/project:knot:advance`** — user sign-off / human override for the active knot: verifies every per-knot success criterion has evidence, records the sign-off summary, and clears the active knot so the next one can start.
