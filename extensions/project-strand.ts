@@ -10,6 +10,17 @@ import {
   validateStrandProposal,
   type StrandKnotInput,
 } from "./strand-authoring-core.js";
+import {
+  fg,
+  firstLine,
+  outputLines,
+  plural,
+  renderFrameCall,
+  renderFrameResult,
+  semanticTruncate,
+  textContent,
+  type ToolRenderContextLike,
+} from "./tui-render.js";
 
 const ProjectStrandParams = Type.Object(
   {
@@ -61,6 +72,7 @@ export default function (pi: ExtensionAPI) {
     label: "Project Strand",
     description: "Define a named strand (a reusable knot sequence) in .pi/project.jsonc for use when creating slices.",
     parameters: ProjectStrandParams,
+    renderShell: "self",
     async execute(_toolCallId, params: ProjectStrandInput, _signal, _onUpdate, ctx) {
       const root = await findProjectRoot(ctx.cwd);
       const configPath = join(root, ".pi", "project.jsonc");
@@ -104,6 +116,30 @@ export default function (pi: ExtensionAPI) {
         content: [{ type: "text", text }],
         details: { action: params.action, name: strandName, knots: knotNames },
       };
+    },
+
+    renderCall(args, theme, context) {
+      const input = args as Partial<ProjectStrandInput> | undefined;
+      const target = `define${input?.name ? ` · ${semanticTruncate(input.name, 40)}` : ""}`;
+      return renderFrameCall(theme, context as ToolRenderContextLike, "Strand", target);
+    },
+
+    renderResult(result, _options, theme, context) {
+      const details = result.details as { error?: string; name?: string; knots?: string[] } | undefined;
+      if (details?.error) {
+        return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "error", `Error: ${details.error}`), [], { status: "error" });
+      }
+
+      const text = textContent(result);
+      const knots = details?.knots ?? [];
+      const summary = details?.name
+        ? `Defined ${details.name} · ${plural(knots.length, "knot")}`
+        : firstLine(text) || "Defined strand";
+      const rawLines = text.split("\n").filter(Boolean);
+      const body = knots.length > 0
+        ? [fg(theme, "toolOutput", knots.join(" → ")), ...rawLines.slice(1).map((line) => fg(theme, "muted", line))]
+        : outputLines(theme, text).slice(1);
+      return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", summary), body, { cap: 8 });
     },
   });
 }

@@ -15,12 +15,20 @@ import {
   type EditorTheme,
   Key,
   matchesKey,
-  Text,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+import {
+  fg,
+  plural,
+  renderFrameCall,
+  renderFrameResult,
+  semanticTruncate,
+  textContent,
+  type ToolRenderContextLike,
+} from "./tui-render.js";
 
 // ─── Shared types ────────────────────────────────────────────────────────────
 
@@ -335,6 +343,29 @@ function stringifyResult(result: AskUserQuestionResult): string {
   return JSON.stringify(result, null, 2);
 }
 
+function questionHeaders(params: Partial<AskUserQuestionParams> | undefined): string[] {
+  return params?.questions?.map((q) => q.header).filter(Boolean) ?? [];
+}
+
+function askTarget(params: Partial<AskUserQuestionParams> | undefined): string {
+  const count = params?.questions?.length ?? 0;
+  const headers = questionHeaders(params);
+  return `${plural(count, "question")}${headers.length ? `: ${semanticTruncate(headers.join(", "), 48)}` : ""}`;
+}
+
+function answerBodyLines(
+  theme: Parameters<typeof fg>[0],
+  answers: Record<string, string> | undefined,
+  questions: AskUserQuestionQuestion[] | undefined
+): string[] {
+  const entries = Object.entries(answers ?? {});
+  return entries.map(([question, answer]) => {
+    const header = questions?.find((q) => q.question === question)?.header;
+    const label = header ?? question;
+    return `${fg(theme, "success", "✓")} ${fg(theme, "accent", semanticTruncate(label, 48))} ${fg(theme, "muted", "→")} ${fg(theme, "toolOutput", semanticTruncate(answer, 80))}`;
+  });
+}
+
 // ─── Extension ────────────────────────────────────────────────────────────────
 
 export default function askUserQuestionExtension(pi: ExtensionAPI) {
@@ -352,6 +383,7 @@ export default function askUserQuestionExtension(pi: ExtensionAPI) {
     promptSnippet: PROMPT_SNIPPET,
     promptGuidelines: PROMPT_GUIDELINES,
     parameters: AskUserQuestionParameters,
+    renderShell: "self",
 
     async execute(_toolCallId, params: AskUserQuestionParams, _signal, _onUpdate, ctx) {
       const validationError = validateParams(params);
@@ -880,30 +912,36 @@ export default function askUserQuestionExtension(pi: ExtensionAPI) {
       };
     },
 
-    renderCall(args, theme) {
+    renderCall(args, theme, context) {
       const params = args as Partial<AskUserQuestionParams>;
-      const count = params.questions?.length ?? 0;
-      const headers = params.questions?.map((q) => q.header).join(", ") ?? "";
-      let text = theme.fg("toolTitle", theme.bold("ask_user_question "));
-      text += theme.fg("muted", `${count} question${count === 1 ? "" : "s"}`);
-      if (headers) text += theme.fg("dim", ` (${headers})`);
-      return new Text(text, 0, 0);
+      return renderFrameCall(theme, context as ToolRenderContextLike, "Ask", askTarget(params));
     },
 
-    renderResult(result, _options, theme) {
+    renderResult(result, _options, theme, context) {
       const details = result.details as AskUserQuestionResult | undefined;
       if (!details) {
-        const first = result.content[0];
-        return new Text(first?.type === "text" ? first.text : "", 0, 0);
+        return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "muted", textContent(result) || "Done"));
       }
       if (details.cancelled) {
-        return new Text(theme.fg("warning", "ask_user_question cancelled"), 0, 0);
+        return renderFrameResult(theme, context as ToolRenderContextLike, fg(theme, "warning", "Cancelled by user"), [], { status: "warning" });
       }
-      const lines = Object.entries(details.answers ?? {}).map(
-        ([question, answer]) =>
-          `${theme.fg("success", "✓ ")}${theme.fg("accent", question)} ${theme.fg("muted", "→")} ${answer}`
+      const params = (context as { args?: Partial<AskUserQuestionParams> } | undefined)?.args;
+      const total = params?.questions?.length ?? Object.keys(details.answers ?? {}).length;
+      const answered = Object.keys(details.answers ?? {}).length;
+      const custom = Object.entries(details.answers ?? {}).filter(([question, answer]) => {
+        const q = params?.questions?.find((candidate) => candidate.question === question);
+        return q ? !q.options.some((option) => answer.split(", ").includes(option.label)) : false;
+      }).length;
+      const notes = Object.values(details.annotations ?? {}).filter((a) => a.notes).length;
+      const extras = [custom ? `${custom} custom` : "", notes ? `${notes} notes` : ""].filter(Boolean);
+      const summary = `Answered ${answered}/${total}${extras.length ? ` · ${extras.join(" · ")}` : ""}`;
+      return renderFrameResult(
+        theme,
+        context as ToolRenderContextLike,
+        fg(theme, "muted", summary),
+        answerBodyLines(theme, details.answers, params?.questions),
+        { cap: 12 }
       );
-      return new Text(lines.join("\n"), 0, 0);
     },
   });
 }
