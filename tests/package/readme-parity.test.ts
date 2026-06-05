@@ -19,6 +19,7 @@ describe("README parity", () => {
     const text = await read("README.md");
     expect(text).toContain(".pi/project.jsonc");
     expect(text).toContain("/project:knot:advance");
+    expect(text).toContain("knot:sign_off");
   });
 
   test("writing-skills no longer claims only two frontmatter fields exist", async () => {

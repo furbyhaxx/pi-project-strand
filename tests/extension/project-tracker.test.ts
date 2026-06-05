@@ -319,7 +319,7 @@ describe("computeNext", () => {
 
     state = handleVerifyCriterion(state, "dns-cache", "knot", 0, "e").state;
     state = handleVerifyCriterion(state, "dns-cache", "knot", 1, "e").state;
-    expect(computeNext(state)).toContain("ready for sign-off");
+    expect(computeNext(state)).toContain("ready for user sign-off");
 
     state = handleKnotSignOff(state, "dns-cache", "m", "e").state;
     expect(computeNext(state)).toContain("Start dns-cache → Realization");
@@ -339,6 +339,31 @@ describe("computeNext", () => {
       state = handleKnotSignOff(state, "dns-cache", "m", "e").state;
     }
     expect(computeNext(state)).toContain("slice sign-off");
+  });
+
+  test("ready agent-authorized knot points agents at knot:sign_off, not the human override", () => {
+    let state = handleSliceActivate(withSlice(), "dns-cache").state;
+    state = handleKnotStart(state, { slice_id: "dns-cache", knot: "Prototype", goals: [], criteria: ["c"] }).state;
+    state = handleVerifyCriterion(state, "dns-cache", "knot", 0, "e").state;
+    state = handleKnotSignOff(state, "dns-cache", "m", "e").state;
+    state = handleKnotStart(state, { slice_id: "dns-cache", knot: "Realization", goals: [], criteria: ["c"] }).state;
+    state = handleVerifyCriterion(state, "dns-cache", "knot", 0, "e").state;
+
+    const next = computeNext(state);
+    expect(next).toContain("agent sign-off");
+    expect(next).toContain("project_tracker action=knot:sign_off slice_id=dns-cache");
+    expect(next).not.toContain("/project:knot:advance dns-cache");
+  });
+
+  test("ready judge-authorized knot points at knot:judge", () => {
+    let state = handleSliceActivate(withSlice(), "dns-cache").state;
+    state = handleKnotStart(state, { slice_id: "dns-cache", knot: "Prototype", goals: [], criteria: ["c"] }).state;
+    state.slices[0]!.strand.knots[0]!.advance_by = ["judge"];
+    state = handleVerifyCriterion(state, "dns-cache", "knot", 0, "e").state;
+
+    const next = computeNext(state);
+    expect(next).toContain("judge sign-off");
+    expect(next).toContain("project_tracker action=knot:judge slice_id=dns-cache");
   });
 });
 
@@ -360,10 +385,10 @@ describe("agent two-phase sign-off", () => {
     expect(r.text).toContain("/project:knot:advance");
   });
 
-  test("first call arms (no advance) and returns the criteria challenge", () => {
+  test("first call arms as a successful mutation (no advance) and returns the criteria challenge", () => {
     const s = armed(withSlice(), "Realization"); // quick.Realization = ["agent"]
     const r = handleAgentSignOff(s, "dns-cache", "m", "e", t0, WINDOW);
-    expect(r.error).toBe("armed");
+    expect(r.error).toBeUndefined();
     expect(r.state.slices[0]!.strand.knots[1]!.signoff_arm).toEqual({ armed_at: t0 });
     expect(r.state.slices[0]!.strand.knots[1]!.status).toBe("active");
     expect(r.text).toContain("c1");
@@ -397,7 +422,7 @@ describe("agent two-phase sign-off", () => {
     s = handleVerifyCriterion(s, "dns-cache", "knot", 0, "e0").state;
     s = handleVerifyCriterion(s, "dns-cache", "knot", 1, "e1").state;
     const r = handleAgentSignOff(s, "dns-cache", "m", "all green", tLate, WINDOW);
-    expect(r.error).toBe("armed");
+    expect(r.error).toBeUndefined();
     expect(r.state.slices[0]!.strand.knots[1]!.signoff_arm).toEqual({ armed_at: tLate });
     expect(r.state.slices[0]!.strand.knots[1]!.status).toBe("active");
   });

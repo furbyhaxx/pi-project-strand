@@ -90,4 +90,11 @@ describe("workflow regressions", () => {
     expect(text).toContain("MVFoS");
     expect(text).toContain("PROJECT.md` Planned Features / Capabilities");
   });
+
+  test("frs-strategy documents all advance_by advancement paths", async () => {
+    const text = await file("skills/frs-strategy/SKILL.md");
+    expect(text).toContain("project_tracker action=knot:sign_off");
+    expect(text).toContain("project_tracker action=knot:judge");
+    expect(text).toContain("/project:knot:advance");
+  });
 });

@@ -183,9 +183,12 @@ BEFORE claiming a knot is complete and advancing to the next:
 
 1. Re-read ALL done criteria from the plan's Knot Done Criteria section
 2. Run each validation command specified and capture output
-3. Present evidence to user: criteria + evidence for each
-4. Wait for user explicit knot sign-off
-5. ONLY THEN: update CHANGELOG.md, plan docs, and advance
+3. Record evidence for every criterion with `project_tracker action=verify_criterion`
+4. Follow the active knot's `advance_by` path:
+   - `human`: present criteria + evidence to the user and wait for `/project:knot:advance`
+   - `agent`: use the two-step `project_tracker action=knot:sign_off` arm/confirm flow with an evidence summary
+   - `judge`: run `project_tracker action=knot:judge` and respect the verdict unless the user overrides
+5. ONLY THEN: update CHANGELOG.md and plan docs as the project requires
 
 Partial criteria met = knot not complete. Never advance with unmet criteria.
 

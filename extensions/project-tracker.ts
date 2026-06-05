@@ -294,7 +294,10 @@ export async function buildProjectStrandContext(cwd: string): Promise<{ text: st
     const knot = slice.strand.knots.find((k) => k.name === slice.strand.current_knot);
     if (!knot) continue;
     if (knot.advance_by.includes("agent")) {
-      parts.push(`${slice.id} → ${knot.name}: agent self-advance ALLOWED (advance_by=[${knot.advance_by.join(", ")}]). Protocol: verify all criteria, then knot:sign_off (arms + returns the checklist) → knot:sign_off WITH evidence within the freshness window to confirm.`);
+      const arm = knot.signoff_arm
+        ? ` ARMED at ${knot.signoff_arm.armed_at}; confirm with project_tracker action=knot:sign_off slice_id=${slice.id} evidence=<summary> within ${runtime.signoffWindowSeconds}s, or it re-arms.`
+        : ` Protocol: verify all criteria, then project_tracker action=knot:sign_off slice_id=${slice.id} (arms + returns the checklist) → repeat with evidence within ${runtime.signoffWindowSeconds}s to confirm.`;
+      parts.push(`${slice.id} → ${knot.name}: agent self-advance ALLOWED (advance_by=[${knot.advance_by.join(", ")}]).${arm}`);
     } else if (knot.advance_by.includes("judge")) {
       const last = knot.last_verdict && !knot.last_verdict.approved ? ` Last judge verdict: REJECTED — ${knot.last_verdict.reasons}` : "";
       parts.push(`${slice.id} → ${knot.name}: advance via the judge — project_tracker action=knot:judge slice_id=${slice.id} (or /project:knot:advance to override).${last}`);

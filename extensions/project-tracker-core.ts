@@ -570,7 +570,10 @@ export function handleAgentSignOff(
       ``,
       `Verify every criterion with real evidence via verify_criterion. Once all are genuinely met, call knot:sign_off again WITH an evidence summary within ${windowSeconds}s to confirm. After that window this resets.`,
     ];
-    return { text: lines.join("\n"), state: touch(normalizeState(current)), error: "armed" };
+    // Arming is a successful state mutation, not an error. The extension wrapper
+    // only persists non-error results, so returning an error here discards the
+    // `signoff_arm` timestamp and causes every later call to re-arm forever.
+    return { text: lines.join("\n"), state: touch(normalizeState(current)) };
   }
 
   // Within window → confirm.
@@ -778,7 +781,7 @@ export function computeNext(state: ProjectState): string {
   for (const slice of active) {
     const knot = getActiveKnot(slice);
     if (knot && knot.success_criteria.every((c) => c.met)) {
-      return `${slice.id} → ${knot.name} is ready for sign-off (/project:knot:advance ${slice.id})`;
+      return formatKnotAdvancementNext(slice, knot);
     }
   }
   for (const slice of active) {
@@ -792,6 +795,22 @@ export function computeNext(state: ProjectState): string {
   if (defined.length > 0) return `Activate ${defined[0]!.id} (${defined[0]!.type}, priority ${defined[0]!.priority})`;
 
   return "No obvious next slice.";
+}
+
+function formatKnotAdvancementNext(slice: Slice, knot: Knot): string {
+  if (knot.advance_by.includes("agent")) {
+    const action = `project_tracker action=knot:sign_off slice_id=${slice.id}`;
+    if (knot.signoff_arm) {
+      return `${slice.id} → ${knot.name} is armed for agent sign-off; confirm with ${action} evidence=<summary> within the configured freshness window.`;
+    }
+    return `${slice.id} → ${knot.name} is ready for agent sign-off (${action}; first call arms, second call confirms with evidence).`;
+  }
+
+  if (knot.advance_by.includes("judge")) {
+    return `${slice.id} → ${knot.name} is ready for judge sign-off (project_tracker action=knot:judge slice_id=${slice.id}; /project:knot:advance ${slice.id} overrides).`;
+  }
+
+  return `${slice.id} → ${knot.name} is ready for user sign-off (/project:knot:advance ${slice.id})`;
 }
 
 export function handleStatus(state: ProjectState): ActionResult {

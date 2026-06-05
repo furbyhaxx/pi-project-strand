@@ -70,13 +70,16 @@ When `advance_by` includes `judge`, advancement is gated by an independent audit
 
 **Built-in defaults — human at the bookends, agent in the middle.** The five default strands gate *direction* at the start and *shipping* at the end with the human, while letting the agent run the productive middle:
 
-- **deep-research** and **spike** run autonomously (every knot is `agent`) — research and throwaway experiments need no human gate between stages.
+- **deep-research** runs autonomously (`agent` on every knot) — research synthesis needs no human gate between stages.
+- **spike** lets the agent run Setup and Experiment, then returns to the human for the Decision knot.
 - **quick**, **change**, and **granular** keep the human on the opening knot (set direction) and the closing knot(s) (sign off shipping), with `agent` on the implementation knots in between.
 
 ## Lifecycle commands
 
 - **`/project:new:slice <request>`** — interactive funnel that captures the slice goal + success criteria, picks a strand, and creates the slice (replaces the old brainstorm entry point).
-- **`/project:knot:advance`** — sign off the active knot: verifies every per-knot success criterion has evidence, records the sign-off summary, and clears the active knot so the next one can start.
+- **`project_tracker action=knot:sign_off`** — agent self-advance path for knots whose `advance_by` includes `agent`: first call arms, second call within the freshness window confirms with evidence.
+- **`project_tracker action=knot:judge` / `/project:knot:judge`** — judge path for knots whose `advance_by` includes `judge`.
+- **`/project:knot:advance`** — user sign-off / human override for the active knot: verifies every per-knot success criterion has evidence, records the sign-off summary, and clears the active knot so the next one can start.
 - **`/project:slice:advance`** — finalize the slice: requires all knots signed off (or fast-forwarded), then signs off the slice and marks it complete.
 - **`/project:knot:fast_forward`** — the explicit, user-approved way to skip ahead: squash the knots between the current position and a later target into the target, recording a combined evidence summary. This is the only sanctioned way to skip a knot.
 
@@ -146,13 +149,13 @@ Pick the **next minimum slice** that:
 
 | Role | Party | Responsibilities |
 |------|-------|-----------------|
-| **Stakeholder / Final Authority** | User | Approve designs, review specs, live testing, knot sign-off, deployment approval |
-| **Implementer / Worker** | AI agents | Everything else: design, code, tests, review, debug, document |
+| **Stakeholder / Final Authority** | User | Approve designs, review specs, live testing, human-gated knot sign-off, final slice sign-off, deployment approval |
+| **Implementer / Worker** | AI agents | Everything else: design, code, tests, review, debug, document; may advance `agent`-gated knots through the two-step protocol |
 
-**Mandatory user gates** — always stop and wait:
+**Mandatory gates** — never skip the gate that applies:
 1. **Design approval** — after brainstorming, before writing plan
 2. **Spec review** — after writing spec, before implementation
-3. **Knot sign-off** — before advancing to next knot
+3. **Knot advancement** — follow the active knot's `advance_by`: `human` waits for `/project:knot:advance`, `agent` uses two-step `knot:sign_off`, `judge` uses `knot:judge`
 4. **Deployment approval** — before installing anything on fw02 as a service
 
 The user's job is to judge. If the user is being asked to implement something, stop and redirect that work back to the AI team.
@@ -186,11 +189,14 @@ Columns use the granular knots; map your strand's knots onto the nearest column.
 
 ## Knot Advancement Checklist
 
-Before advancing from one knot to the next (`/project:knot:advance`):
+Before advancing from one knot to the next:
 - [ ] Every per-knot `success_criteria` entry verified individually, each with recorded evidence
-- [ ] Evidence presented to user
-- [ ] User explicitly signs off on this knot (sign-off summary recorded on the knot record)
-- [ ] CHANGELOG.md updated with knot completion
+- [ ] Evidence summary is ready and honest; no criterion is merely assumed
+- [ ] The active knot's `advance_by` path is followed:
+  - `human`: present evidence to the user and wait for `/project:knot:advance`
+  - `agent`: call `project_tracker action=knot:sign_off` once to arm, then call it again with evidence within the freshness window to confirm
+  - `judge`: call `project_tracker action=knot:judge` and respect the verdict unless the user overrides
+- [ ] CHANGELOG.md updated with knot completion when the project requires it
 - [ ] Plan/design doc updated to reflect advancement
 
 To finalize the whole slice (`/project:slice:advance`): all knots signed off (or fast-forwarded via `/project:knot:fast_forward`), slice-level `success_criteria` verified, and the user signs off the slice.

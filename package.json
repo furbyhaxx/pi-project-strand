@@ -1,6 +1,6 @@
 {
   "name": "pi-project-strand",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Persistent project-scoped FRS/MVFoS tracking and workflow skills for pi",
   "keywords": [
     "pi-package"

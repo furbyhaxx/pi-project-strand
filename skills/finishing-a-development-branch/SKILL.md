@@ -65,7 +65,7 @@ Must address these before merging.
 
 Stop. Return to implementation.
 
-**If all criteria met:** Continue to Step 2. Document the evidence — it will be needed for the user knot sign-off.
+**If all criteria met:** Continue to Step 2. Document the evidence — it will be needed for the applicable `advance_by` sign-off path.
 
 **Note:** If this branch is not a knot-completing branch (partial work, hotfix, etc.), skip this step and note it explicitly.
 
@@ -161,7 +161,7 @@ Would you like me to:
 4. Neither (I'll handle deployment separately)
 ```
 
-Do NOT deploy without user approval. Do NOT claim knot sign-off on behalf of the user \u2014 only the user can sign off on a completed knot.
+Do NOT deploy without user approval. Do NOT claim human sign-off on behalf of the user; for `agent`-authorized knots use the two-step `project_tracker action=knot:sign_off` protocol, and for `human`-gated knots wait for `/project:knot:advance`.
 
 #### Option 2: Push and Create PR
 
@@ -247,7 +247,7 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 **Skipping knot assessment**
 - **Problem:** Merging code that doesn't meet knot done criteria
-- **Fix:** Always run Step 1.5 after tests pass; document evidence for user sign-off
+- **Fix:** Always run Step 1.5 after tests pass; document evidence for the applicable `advance_by` sign-off path
 
 **Skipping test verification**
 - **Problem:** Merge broken code, create failing PR

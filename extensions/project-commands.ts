@@ -144,6 +144,7 @@ Requirements:
 1. Read project_tracker status, next action, active slice, active knot, criteria, and linked plan status.
 2. Read PROJECT.md Planned Features / Capabilities and relevant project_knowledge entries for the active slice and current files.
 3. Route based on state:
+   - Active slice with an active knot and all criteria met: follow that knot's \`advance_by\` policy (\`agent\` → two-step \`project_tracker action=knot:sign_off\`, \`judge\` → \`project_tracker action=knot:judge\`, \`human\` → prompt the user for \`/project:knot:advance\`).
    - Active slice with an active knot + linked plan: resume with /skill:executing-plans or /skill:subagent-driven-development.
    - Active slice with an active knot but no plan: use /skill:writing-plans first.
    - Active slice, no active knot, pending knots remain: use /skill:frs-strategy to knot:start the next pending knot (define its goals + success_criteria).
@@ -151,7 +152,7 @@ Requirements:
    - Defined slice: ask the user to activate it (slice:activate), or run /project:new:slice for a new feature.
    - No project files/tracker state: run /project:onboard first.
 4. Explain the routing briefly, then proceed with the appropriate skill.
-5. Keep user gates: design approval, spec review, knot sign-off, deployment approval.`;
+5. Keep required gates: design approval, spec review, \`advance_by\` knot advancement, deployment approval.`;
   }
 
   return `${header}

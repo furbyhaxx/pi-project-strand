@@ -74,6 +74,8 @@ describe("project command message builders", () => {
     const text = buildProjectCommandMessage("build", "", audit);
     expect(text).toContain("/project:build");
     expect(text).toContain("Read project_tracker status");
+    expect(text).toContain("advance_by");
+    expect(text).toContain("project_tracker action=knot:sign_off");
     expect(text).toContain("Active slice with an active knot + linked plan");
   });
 

@@ -81,7 +81,9 @@ Persistent project-scoped tracking:
 ```ts
 project_tracker({ action: "slice:create", id: "dns-cache", name: "DNS Cache", description: "...", type: "vertical" })
 project_tracker({ action: "knot:start", slice_id: "dns-cache", knot: "PoW", criteria: ["Approach validated", "API shape decided"] })
-project_tracker({ action: "knot:verify_criterion", slice_id: "dns-cache", index: 0, evidence: "Spike succeeded" })
+project_tracker({ action: "verify_criterion", slice_id: "dns-cache", target: "knot", index: 0, evidence: "Spike succeeded" })
+project_tracker({ action: "knot:sign_off", slice_id: "dns-cache" }) // arm agent-gated sign-off
+project_tracker({ action: "knot:sign_off", slice_id: "dns-cache", evidence: "All agent-gated criteria verified" }) // confirm
 project_tracker({ action: "status" })
 project_tracker({ action: "next" })
 ```
@@ -93,7 +95,10 @@ project_tracker({ action: "next" })
 - `/project:slice <slice-id>`
 - `/project:next`
 - `/project:plan <slice-id>`
-- `/project:knot:advance <slice-id>` — **user sign-off gate**
+- `/project:knot:advance <slice-id>` — user sign-off / human override
+- `/project:knot:judge <slice-id>` — independent judge advancement for judge-gated knots
+- `/project:knot:fast_forward <slice-id>` — user-approved knot squash/skip workflow
+- `/project:slice:advance <slice-id>` — final slice sign-off
 
 ### Skills
 
@@ -121,7 +126,7 @@ This package includes the adapted workflow skills, including:
 3. **Write or link a plan** for the active slice and knot
 4. **Track per-session execution** with `plan_tracker`
 5. **Verify criteria** in `project_tracker`
-6. **User signs off the knot** with `/project:knot:advance`
+6. **Advance the knot according to `advance_by`**: `agent` uses the two-step `project_tracker action=knot:sign_off`, `judge` uses `project_tracker action=knot:judge`, and `human` waits for `/project:knot:advance`
 
 ## Development
 

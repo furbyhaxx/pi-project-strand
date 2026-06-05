@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-06-05
+
+### Added
+- `AGENTS.md` now has a cross-domain update matrix telling agents which code, docs, tests, and skills must be checked together when changing tracker actions, strands, commands, skills, package metadata, and TUI/tool behavior.
+
+### Fixed
+- `project_tracker action=knot:sign_off` now persists the first agent self-advance arm instead of reporting it as an error, so the second call within `agent_signoff_window_seconds` can actually confirm and advance. Yes, state mutations hidden behind an `error` flag were as cursed as they sound.
+- `project_tracker action=next`, bootstrap guidance, project command routing, README, and workflow skills now point agents at the correct `advance_by` path (`knot:sign_off`, `knot:judge`, or `/project:knot:advance`) instead of always suggesting the human override.
+
 ## [0.6.1] - 2026-06-04
 
 ### Fixed

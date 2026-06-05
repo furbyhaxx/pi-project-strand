@@ -38,6 +38,8 @@ describe("buildProjectStrandBootstrap", () => {
     const text = buildProjectStrandBootstrap();
     expect(text).toContain("advance_by");
     expect(text).toContain("two-step");
+    expect(text).toContain("project_tracker action=knot:sign_off");
+    expect(text).not.toContain("Request knot sign-off (/project:knot:advance)");
   });
 
   test("bootstrap documents the judge path", () => {

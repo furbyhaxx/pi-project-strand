@@ -47,6 +47,27 @@ No build step. No compilation. `npm test` is the only verification gate.
 3. Use `pi.sendUserMessage(...)` to trigger LLM-driven workflows; use `deliverAs: "followUp"` if the agent is busy
 4. Add the extension file to `package.json` `pi.extensions` only if creating a new extension module
 
+## Cross-Domain Update Matrix
+
+Keep code, prompts, skills, tests, docs, and package metadata in sync. When touching one part, check the paired areas in the same change — because apparently string drift is how we summon bugs.
+
+| If you change... | Also check/update... | Verification / skill to load |
+|---|---|---|
+| `project-tracker-core.ts` state, actions, defaults, `advance_by`, or formatting | `project-tracker.ts`, `superpowers-bootstrap.ts`, `skills/frs-strategy`, `skills/verification-before-completion`, `skills/finishing-a-development-branch`, `README.md`, `CHANGELOG.md`, `tests/extension/project-tracker.test.ts` | `/skill:frs-strategy`; run `npm test` |
+| `project-tracker.ts` wrapper, commands, tool schema, file I/O, or judge invocation | core helpers, `tests/extension/project-tracker.test.ts`, README command examples, bootstrap context, package `pi.extensions` if files move | `/skill:extending-pi-agent`; run `npm test` |
+| default strands or strand authoring (`DEFAULT_STRANDS`, `project-strand`, `.pi/project.jsonc` shape) | `/project:new:slice` and `/project:new:strand` prompts, `frs-strategy`, bootstrap default-strand list, README, strand tests, changelog | `/skill:frs-strategy`; run `npm test` |
+| `/project:*` command text or routing in `project-commands.ts` | `tests/extension/project-commands.test.ts`, README slash-command list, `frs-strategy`/workflow skills if behavior changes | `/skill:extending-pi-agent`; run `npm test` |
+| `project-knowledge` behavior, categories, relations, glob/path triggers, or bootstrap surfacing | `project-knowledge-core.ts`, `project-knowledge.ts`, bootstrap knowledge context, relevant skills that tell agents what to store/query, tests | `/skill:extending-pi-agent`; run `npm test` |
+| `plan_tracker` behavior or output | `plan-tracker-core.ts`, `plan-tracker.ts`, README examples, bootstrap/workflow skill mentions, tests | Run `npm test` |
+| any `skills/<name>/SKILL.md` file | `tests/skills/*`, bootstrap skill routing, command templates that invoke the skill, README skill list, any referenced files under the skill directory | `/skill:writing-skills`; run `npm test` |
+| package manifest, published files, extension/skill discovery, or version | `package-lock.json`, `tests/package/*`, README install/package notes, `CHANGELOG.md`; use `npm version <patch|minor|major> --no-git-tag-version` for version bumps | `/skill:extending-pi-agent`; run `npm test` and `npm pack --dry-run` when package contents changed |
+| TUI/tool UI behavior such as `ask_user_question` | pi TUI/extension docs, renderer/tool result shapes, narrow-terminal tests, README if user-visible | `/skill:extending-pi-agent`; run focused tests and `npm test` |
+
+### Keeping This Matrix Current
+- Update this matrix in the same change whenever adding, renaming, splitting, or removing a tool, command, skill, strand, state field, package entry, or workflow rule.
+- Before finishing a cross-domain change, run `rg` for the changed action/command/field/strand name across `extensions/`, `skills/`, `references/`, `tests/`, `README.md`, `PROJECT.md`, and `CHANGELOG.md`; update every stale mention or add a test documenting why it intentionally stays different.
+- New regression classes should add both code tests and prompt/skill/docs parity checks when agent guidance contributed to the bug.
+
 ## DO NOT
 
 - **No build artifacts committed.** If you see `.js` or `.d.ts` files next to `.ts` source, they're artifacts — add them to `.gitignore`, don't commit them.
